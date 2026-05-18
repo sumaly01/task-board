@@ -1,0 +1,32 @@
+// Prisma schema for auth-service
+//
+// Prisma is schema-first: you define your data model here, then run
+// `prisma migrate dev` to generate SQL migrations and apply them to the DB.
+// `prisma generate` creates a type-safe PrismaClient from this schema.
+//
+// Why a separate DB per service?
+// Microservices principle: auth-service is the ONLY service that can read or
+// write this database. Scale, migrate, or rewrite it without touching anything else.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
