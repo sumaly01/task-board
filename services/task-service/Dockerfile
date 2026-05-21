@@ -1,14 +1,15 @@
-FROM node:20-alpine
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy all files including prisma/schema.prisma so @prisma/client postinstall
-# can run `prisma generate` during npm install.
 COPY . .
 
 RUN npm install
 
-# Compile TypeScript → dist/
+RUN npx prisma generate
+
 RUN npm run build
 
 EXPOSE 4002

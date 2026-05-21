@@ -1,18 +1,20 @@
-FROM node:20-alpine
+FROM node:20-slim
+
+# Prisma's query engine binary links against OpenSSL at runtime.
+# node:20-slim is Debian Bookworm — openssl provides libssl3 (OpenSSL 3.x).
+RUN apt-get update && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy all files including prisma/schema.prisma so @prisma/client postinstall
-# can run `prisma generate`. If prisma/ is not present when npm install runs,
-# the Prisma client generation step will fail.
 COPY . .
 
-# Install all dependencies. @prisma/client postinstall runs `prisma generate`
-# against prisma/schema.prisma. On Day 1 the schema has no models yet,
-# which is fine — it generates an empty client.
 RUN npm install
 
-# Compile TypeScript → dist/
+# @prisma/client postinstall sometimes misses running `prisma generate` because
+# the prisma CLI is still being installed at that point. Running it explicitly
+# here guarantees the typed client (User, etc.) is generated before tsc runs.
+RUN npx prisma generate
+
 RUN npm run build
 
 EXPOSE 4001
