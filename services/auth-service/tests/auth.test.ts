@@ -20,7 +20,7 @@ jest.mock('../src/lib/redis', () => ({
 }));
 
 const mockedRepo = userRepo as jest.Mocked<typeof userRepo>;
-const mockedRedis = redis as { get: jest.Mock; set: jest.Mock; del: jest.Mock };
+const mockedRedis = redis as unknown as { get: jest.Mock; set: jest.Mock; del: jest.Mock };
 
 const TEST_JWT_SECRET = 'test_jwt_secret';
 const TEST_REFRESH_SECRET = 'test_refresh_secret';
@@ -54,11 +54,11 @@ describe('POST /auth/register', () => {
 
     const res = await request(app)
       .post('/auth/register')
-      .send({ email: 'test@example.com', password: 'password123', name: 'Test User' });
+      .send({ email: mockUser.email, password: 'password123', name: mockUser.name });
 
     expect(res.status).toBe(201);
-    expect(res.body.user.email).toBe('test@example.com');
-    expect(res.body.user.name).toBe('Test User');
+    expect(res.body.user.email).toBe(mockUser.email);
+    expect(res.body.user.name).toBe(mockUser.name);
     expect(res.body.user.password).toBeUndefined();
   });
 
@@ -117,11 +117,9 @@ describe('POST /auth/login', () => {
 
 describe('POST /auth/refresh', () => {
   it('returns new token pair when refresh token is valid and in Redis', async () => {
-    const refreshToken = jwt.sign(
-      { userId: mockUser.id },
-      TEST_REFRESH_SECRET,
-      { expiresIn: '7d' },
-    );
+    const refreshToken = jwt.sign({ userId: mockUser.id }, TEST_REFRESH_SECRET, {
+      expiresIn: '7d',
+    });
     mockedRedis.get.mockResolvedValue(refreshToken);
     mockedRedis.del.mockResolvedValue(1);
     mockedRedis.set.mockResolvedValue('OK');

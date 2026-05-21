@@ -73,8 +73,7 @@ export async function login(body: LoginBody): Promise<AuthTokens> {
 
   // Store refresh token in Redis so we can invalidate it on logout.
   // Key: refresh:{userId}, TTL: 7 days
-  // Why Redis and not PostgreSQL? Redis TTL handles expiry automatically —
-  // no need to run a cleanup job. And token lookups are O(1) with no joins.
+  // Redis TTL handles expiry automatically
   await redis.set(`refresh:${user.id}`, tokens.refreshToken, 'EX', REFRESH_TOKEN_TTL);
 
   return tokens;
