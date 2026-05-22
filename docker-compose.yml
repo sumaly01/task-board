@@ -170,6 +170,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@task-db:5432/task_db
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:9092
+      JWT_SECRET: changeme_jwt_secret_replace_in_production
     depends_on:
       task-db:
         condition: service_healthy

@@ -1,22 +1,13 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
+import app from './app';
+import { connectProducer } from './kafka/producer';
 
-const app = express();
 const PORT = Number(process.env.PORT) || 4002;
 
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
+async function start() {
+  await connectProducer();
+  app.listen(PORT, () => {
+    console.log(`Task Service running on port ${PORT}`);
+  });
+}
 
-// Day 1: health check only.
-// Day 3: project and task CRUD routes, Redis caching, and Kafka producer will be added here.
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'task-service' });
-});
-
-app.listen(PORT, () => {
-  console.log(`Task Service running on port ${PORT}`);
-});
-
-export default app;
+start();
