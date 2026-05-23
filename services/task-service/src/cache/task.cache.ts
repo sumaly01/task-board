@@ -21,7 +21,11 @@ function cacheKey(projectId: string): string {
 //   query per write is a trivial cost for guaranteed correctness.
 export async function getCachedTasks(projectId: string): Promise<Task[] | null> {
   const raw = await redis.get(cacheKey(projectId));
-  if (!raw) return null;
+  if (!raw) {
+    console.log(`[cache] MISS  ${cacheKey(projectId)}`);
+    return null;
+  }
+  console.log(`[cache] HIT   ${cacheKey(projectId)}`);
   return JSON.parse(raw) as Task[];
 }
 
