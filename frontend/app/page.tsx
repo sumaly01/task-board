@@ -1,7 +1,7 @@
-export default function HomePage() {
-  return (
-    <main className="flex min-h-screen items-center justify-center">
-      <h1 className="text-4xl font-bold">TaskFlow</h1>
-    </main>
-  );
+import { redirect } from 'next/navigation';
+
+// Root path redirects to dashboard; middleware will catch unauthenticated users
+// and send them to /login before the dashboard page ever renders.
+export default function Home() {
+  redirect('/dashboard');
 }

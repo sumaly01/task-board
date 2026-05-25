@@ -265,6 +265,12 @@ services:
     ports:
       - '3000:3000'
     environment:
+      # GATEWAY_URL is server-side only — used by Next.js API routes and server components
+      # to reach the gateway over Docker's internal network. "localhost" inside the frontend
+      # container is the frontend container itself, not the gateway.
+      GATEWAY_URL: http://api-gateway:4000
+      # NEXT_PUBLIC_* vars are embedded in the client JS bundle and used by the browser.
+      # The browser runs on the host machine, so localhost:4000 (mapped port) is correct.
       NEXT_PUBLIC_API_URL: http://localhost:4000
       NEXT_PUBLIC_WS_URL: http://localhost:4003
     depends_on:

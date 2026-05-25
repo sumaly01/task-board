@@ -6,7 +6,6 @@ dist/
 .next/
 coverage/
 *.log
-prisma/migrations/
 *.tsbuildinfo
 
 CHANGES.md
