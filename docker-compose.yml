@@ -202,10 +202,15 @@ services:
       PORT: 4003
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:9092
+      # Read-only access to task_db for the due-date cron job.
+      # Notification-service never runs migrations — task-service owns the schema.
+      TASK_DATABASE_URL: postgresql://postgres:postgres@task-db:5432/task_db
     depends_on:
       redis:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      task-db:
         condition: service_healthy
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:4003/health || exit 1']

@@ -1,20 +1,33 @@
-import express from 'express';
-import cors from 'cors';
+import http from 'http';
+import app from './app';
+import { createSocketServer } from './socket/server';
+import { startConsumer } from './kafka/consumer';
+import { startReminderCron } from './cron/reminder.cron';
 
-const app = express();
 const PORT = Number(process.env.PORT) || 4003;
 
-app.use(cors());
-app.use(express.json());
+async function main() {
+  // Wrap the Express app in a plain HTTP server so Socket.io can attach to it.
+  // Both share the same port — HTTP requests go to Express, WebSocket upgrades
+  // go to Socket.io. The HTTP server handles the upgrade handshake transparently.
+  const httpServer = http.createServer(app);
 
-// Day 1: health check only.
-// Day 4: Kafka consumer, Socket.io server, and node-cron will be added here.
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'notification-service' });
-});
+  createSocketServer(httpServer);
 
-app.listen(PORT, () => {
-  console.log(`Notification Service running on port ${PORT}`);
-});
+  // Kafka consumer startup is non-fatal: if Kafka is not ready (e.g. docker-compose
+  // startup race), we log the error and continue. The service still serves health
+  // checks and WebSocket connections. Kafka can be retried manually if needed.
+  try {
+    await startConsumer();
+  } catch (err) {
+    console.error('[kafka] failed to start consumer — service continues without Kafka:', err);
+  }
 
-export default app;
+  startReminderCron();
+
+  httpServer.listen(PORT, () => {
+    console.log(`Notification Service running on port ${PORT}`);
+  });
+}
+
+main().catch(console.error);

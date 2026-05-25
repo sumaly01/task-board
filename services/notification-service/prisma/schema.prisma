@@ -1,0 +1,45 @@
+// Notification service reads task_db directly for the due-date cron job.
+//
+// This schema mirrors the Task model from task-service. Notification-service
+// never runs migrations — task-service owns the schema. This file exists solely
+// so `prisma generate` can produce a typed client.
+//
+// TASK_DATABASE_URL points at the same task_db that task-service writes to.
+// The cron job queries for tasks due within 24 hours and marks reminderSent=true.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("TASK_DATABASE_URL")
+}
+
+model Task {
+  id           String    @id @default(uuid())
+  title        String
+  description  String?
+  status       Status    @default(TODO)
+  priority     Priority  @default(MEDIUM)
+  dueDate      DateTime?
+  projectId    String
+  assigneeId   String
+  createdBy    String
+  reminderSent Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+enum Status {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}

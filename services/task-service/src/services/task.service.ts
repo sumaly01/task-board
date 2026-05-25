@@ -93,5 +93,6 @@ export async function deleteTask(id: string, userId: string) {
     taskId: id,
     projectId: existing.projectId,
     userId,
+    assigneeId: existing.assigneeId, // included so notification-service can target the right user
   });
 }
