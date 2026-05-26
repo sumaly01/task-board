@@ -7,8 +7,19 @@ export async function createProject(body: CreateProjectBody, ownerId: string) {
   return projectRepo.createProject({ name: body.name.trim(), ownerId });
 }
 
-export async function getProjectsByOwner(ownerId: string) {
-  return projectRepo.findProjectsByOwner(ownerId);
+// WHY role-scoped project queries (Day 7):
+//
+// ADMIN: sees every project in the system — they manage all work.
+// MEMBER: sees only projects where they have at least one task assigned.
+//   A member who is not assigned any task in a project has no reason to see it —
+//   they can't create tasks or see others' work there anyway.
+//
+// This mirrors the frontend dashboard split: admin sees all, member sees their slice.
+export async function getProjects(role: string, userId: string) {
+  if (role === 'ADMIN') {
+    return projectRepo.findAllProjects();
+  }
+  return projectRepo.findProjectsForMember(userId);
 }
 
 export async function getProjectById(id: string) {

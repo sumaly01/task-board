@@ -141,6 +141,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: changeme_jwt_secret_replace_in_production
       JWT_REFRESH_SECRET: changeme_refresh_secret_replace_in_production
+      ADMIN_REGISTRATION_SECRET: taskflow-admin-secret-2026
     depends_on:
       auth-db:
         condition: service_healthy
@@ -171,6 +172,7 @@ services:
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:9092
       JWT_SECRET: changeme_jwt_secret_replace_in_production
+      AUTH_SERVICE_URL: http://auth-service:4001
     depends_on:
       task-db:
         condition: service_healthy

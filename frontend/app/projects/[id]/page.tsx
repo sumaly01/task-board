@@ -1,10 +1,11 @@
 // Server component — fetches project + tasks using the httpOnly cookie,
-// then passes initial data and userId to the KanbanBoard client component.
+// then passes initial data, userId, and role to the KanbanBoard client component.
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import dynamic from 'next/dynamic';
-import { fetchProject, fetchTasks } from '@/lib/api';
+import { fetchProject, fetchTasks, fetchMembers } from '@/lib/api';
+import type { Member } from '@/lib/api';
 
 // ssr: false prevents Next.js from server-rendering the Kanban board.
 // @hello-pangea/dnd generates DOM attributes (drag handles, ARIA roles, inline styles)
@@ -33,18 +34,20 @@ interface PageProps {
 }
 
 export default async function ProjectPage({ params }: PageProps) {
-  // Fetch project metadata and its tasks in parallel — no reason to wait
-  // for one before starting the other.
-  const [project, tasks] = await Promise.all([
+  const cookieStore = cookies();
+  const userId = cookieStore.get('userId')?.value ?? '';
+  const role = cookieStore.get('role')?.value ?? 'MEMBER';
+  const isAdmin = role === 'ADMIN';
+
+  // Fetch project, tasks, and (for admin) the member list in parallel.
+  // fetchTasks is role-scoped at the gateway: admin gets all, member gets theirs only.
+  const [project, tasks, members] = await Promise.all([
     fetchProject(params.id),
     fetchTasks(params.id),
+    isAdmin ? fetchMembers() : Promise.resolve([] as Member[]),
   ]);
 
   if (!project) notFound();
-
-  // userId is needed by the Socket.io client to register with the notification service.
-  // We read it from the non-httpOnly cookie set at login.
-  const userId = cookies().get('userId')?.value ?? '';
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -61,13 +64,16 @@ export default async function ProjectPage({ params }: PageProps) {
       <div className="max-w-6xl mx-auto px-6 py-10">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">{project.name}</h2>
 
-        {/* KanbanBoard is a client component — it handles drag-and-drop,
-            socket.io, and the create task modal. We pass all server-fetched
-            data down as props so the initial render is not blocked by client JS. */}
+        {/* KanbanBoard is a client component — handles drag-and-drop, socket.io,
+            and the create/delete task controls. Role is passed so it can hide
+            controls that the current user is not allowed to use.
+            members is only populated for ADMIN (used in the assignee dropdown). */}
         <KanbanBoard
           projectId={project.id}
           userId={userId}
+          role={role as 'ADMIN' | 'MEMBER'}
           initialTasks={tasks}
+          members={members}
         />
       </div>
     </main>

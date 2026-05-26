@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { jwtMiddleware } from './middleware/auth.middleware';
 import { ipRateLimiter, userRateLimiter } from './middleware/ratelimit.middleware';
+import { requireRole } from './middleware/roleGuard';
 
 const app = express();
 
@@ -25,10 +26,31 @@ const TASK_SERVICE_URL = process.env.TASK_SERVICE_URL ?? 'http://localhost:4002'
 // /auth/* — IP-based limiting (user has no token yet on register/login).
 app.use('/auth', ipRateLimiter);
 
-// /projects/* and /tasks/* — JWT validation first (populates req.user),
+// /projects/*, /tasks/*, /members — JWT validation first (populates req.user),
 // then user-based limiting. Order matters: jwtMiddleware must run before
 // userRateLimiter so the rate limiter key can use req.user.userId.
-app.use(['/projects', '/tasks'], jwtMiddleware, userRateLimiter);
+app.use(['/projects', '/tasks', '/members'], jwtMiddleware, userRateLimiter);
+
+// ── RBAC enforcement ──────────────────────────────────────────────────────────
+//
+// WHY enforce roles HERE in the gateway, not only in task-service:
+//   The gateway is the perimeter — it's the correct place to say "you may not
+//   enter this door at all". Task-service is the interior — it scopes queries
+//   by role but does not need to enforce "can this role call this endpoint".
+//   Two layers: gateway blocks the wrong roles, task-service scopes the data.
+//
+// These route-specific middlewares run AFTER jwtMiddleware (which set req.user)
+// but BEFORE the proxy forwards the request to the upstream service.
+// If requireRole calls next(), the proxy forwards the request. If it returns 403,
+// the request never reaches the upstream service.
+
+// ADMIN-only write/delete operations
+app.post('/projects', requireRole('ADMIN'));
+app.post('/tasks', requireRole('ADMIN'));
+app.delete('/tasks/:id', requireRole('ADMIN'));
+
+// ADMIN-only: fetch member list for the assignee dropdown when creating tasks
+app.get('/members', requireRole('ADMIN'));
 
 // ── Proxy routing ─────────────────────────────────────────────────────────────
 //
@@ -53,7 +75,10 @@ app.use(
   createProxyMiddleware({
     target: TASK_SERVICE_URL,
     changeOrigin: true,
-    pathFilter: ['/projects', '/tasks'],
+    // /members is routed to task-service — task-service calls auth-service
+    // internally to fetch the member list. This keeps auth data ownership correct:
+    // auth-service owns users, task-service orchestrates the lookup for the admin UI.
+    pathFilter: ['/projects', '/tasks', '/members'],
     on: {
       proxyReq: (proxyReq, req) => {
         const user = (req as unknown as ExpressRequest).user;

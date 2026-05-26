@@ -17,6 +17,16 @@ export const createUser = async (data: {
   email: string;
   password: string;
   name: string;
+  role?: 'ADMIN' | 'MEMBER';
 }): Promise<User> => {
   return prisma.user.create({ data });
+};
+
+// Returns all users with role=MEMBER.
+// Called internally by task-service via GET /users (not exposed through gateway directly).
+export const findAllMembers = async (): Promise<User[]> => {
+  return prisma.user.findMany({
+    where: { role: 'MEMBER' },
+    orderBy: { name: 'asc' },
+  });
 };

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Edge runtime does not have Node.js Buffer — use atob for base64url decoding instead.
 // JWT payload is base64url encoded (- instead of +, _ instead of /).
-function decodeJwtPayload(token: string): { userId: string } {
+function decodeJwtPayload(token: string): { userId: string; role: string } {
   const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-  return JSON.parse(atob(base64)) as { userId: string };
+  return JSON.parse(atob(base64)) as { userId: string; role: string };
 }
 
 const COOKIE_OPTS = {
@@ -56,20 +56,22 @@ export async function middleware(request: NextRequest) {
           refreshToken: string;
         };
 
-        const { userId } = decodeJwtPayload(accessToken);
+        const { userId, role } = decodeJwtPayload(accessToken);
 
         // Allow the original request to proceed and attach the fresh cookies.
         // The page will render normally — the user never sees the login redirect.
         const response = NextResponse.next();
         response.cookies.set('token', accessToken, { ...COOKIE_OPTS, maxAge: 60 * 15 });
         response.cookies.set('refreshToken', newRefreshToken, { ...COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 });
-        response.cookies.set('userId', userId, {
+        const readableCookieOpts = {
           httpOnly: false,
           secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
+          sameSite: 'lax' as const,
           path: '/',
           maxAge: 60 * 60 * 24 * 7,
-        });
+        };
+        response.cookies.set('userId', userId, readableCookieOpts);
+        response.cookies.set('role', role, readableCookieOpts);
         return response;
       }
     } catch {

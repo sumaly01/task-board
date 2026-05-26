@@ -22,6 +22,18 @@ export const findTasksByProject = async (projectId: string): Promise<Task[]> => 
   });
 };
 
+// MEMBER scoping: returns only tasks assigned to the given userId within a project.
+// Used when role === 'MEMBER' so members never see tasks assigned to other users.
+export const findTasksByProjectAndAssignee = async (
+  projectId: string,
+  assigneeId: string,
+): Promise<Task[]> => {
+  return prisma.task.findMany({
+    where: { projectId, assigneeId },
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
 export const findTaskById = async (id: string): Promise<Task | null> => {
   return prisma.task.findUnique({ where: { id } });
 };

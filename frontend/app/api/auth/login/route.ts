@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     role: string;
   };
 
-  const response = NextResponse.json({ userId: payload.userId, email: payload.email });
+  const response = NextResponse.json({ userId: payload.userId, email: payload.email, role: payload.role });
 
   // httpOnly: true means JavaScript in the browser cannot access this cookie at all.
   // The browser attaches it to every same-origin request automatically.
@@ -45,9 +45,6 @@ export async function POST(request: NextRequest) {
     path: '/',
   });
 
-  // userId is not a secret — it's public info in the JWT payload.
-  // We store it in a readable cookie so the Socket.io client can register
-  // itself with the notification service without needing to decode the JWT.
   // Refresh token stored httpOnly — used by middleware to silently re-issue
   // an access token when it expires, so the user stays logged in for 7 days.
   response.cookies.set('refreshToken', refreshToken, {
@@ -58,9 +55,20 @@ export async function POST(request: NextRequest) {
     path: '/',
   });
 
-  // userId readable by JavaScript — needed for Socket.io register event.
-  // 7 days so it survives the same session as the refresh token.
+  // userId and role are not secrets — they are public claims in the JWT payload.
+  // We store them as readable cookies so client components can access them for:
+  //   userId → Socket.io register event
+  //   role   → useRole() hook to drive conditional rendering (ADMIN vs MEMBER UI)
+  // httpOnly: false is intentional — these are identity hints, not auth credentials.
   response.cookies.set('userId', payload.userId, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 7,
+    path: '/',
+  });
+
+  response.cookies.set('role', payload.role, {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

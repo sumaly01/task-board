@@ -19,4 +19,6 @@ RUN npm run build
 
 EXPOSE 4001
 
-CMD ["node", "dist/index.js"]
+# prisma migrate deploy applies any pending migrations before the server starts.
+# Safe to run on every restart — already-applied migrations are skipped.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

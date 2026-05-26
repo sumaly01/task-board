@@ -41,6 +41,14 @@ export interface Task {
   createdAt: string;
 }
 
+export interface Member {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
 export async function fetchProjects(): Promise<Project[]> {
   const res = await serverFetch('/projects');
   if (!res.ok) return [];
@@ -60,4 +68,13 @@ export async function fetchTasks(projectId: string): Promise<Task[]> {
   if (!res.ok) return [];
   const data = await res.json() as { tasks: Task[] };
   return data.tasks ?? [];
+}
+
+// Admin-only: fetch all users with role=MEMBER for the assignee dropdown.
+// Returns empty array if the caller is not ADMIN (gateway returns 403).
+export async function fetchMembers(): Promise<Member[]> {
+  const res = await serverFetch('/members');
+  if (!res.ok) return [];
+  const data = await res.json() as { members: Member[] };
+  return data.members ?? [];
 }

@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import projectRoutes from './routes/project.routes';
 import taskRoutes from './routes/task.routes';
+import membersRoutes from './routes/members.routes';
 import { errorHandler } from './middleware/error.middleware';
 
 const app = express();
@@ -17,6 +18,7 @@ app.get('/health', (_req, res) => {
 
 app.use('/projects', projectRoutes);
 app.use('/tasks', taskRoutes);
+app.use('/members', membersRoutes);
 
 // Centralized error handler — registered last so it catches errors from all routes.
 app.use(errorHandler);

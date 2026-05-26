@@ -26,20 +26,34 @@ export async function createTask(body: CreateTaskBody, createdBy: string) {
 
   await invalidateTaskCache(body.projectId);
 
-  // Kafka: task.created — Notification Service (Day 4) will consume this to push
-  // a real-time WebSocket notification to the assignee.
+  // Kafka: task.created — Notification Service will consume this to push a
+  // WebSocket notification to the assignee (if assignee !== creator).
   await publishEvent('task.created', { taskId: task.id, projectId: task.projectId, userId: createdBy, task });
 
   return task;
 }
 
-export async function getTasksByProject(projectId: string) {
-  // Cache-aside pattern: check Redis first, fall back to DB, populate cache on miss.
-  const cached = await getCachedTasks(projectId);
+// WHY role is a parameter here (Day 7):
+//
+// The service layer is the correct place to apply data-scoping rules because:
+//   1. The controller knows about HTTP (req, res) but not business rules.
+//   2. The repository knows about the DB but not who is asking.
+//   3. The service knows the business rules: ADMIN sees all, MEMBER sees their own.
+//
+// Passing role + userId down from the controller keeps each layer responsible for
+// exactly one thing. The controller extracts them from req.user; the service decides
+// which query and which cache key to use.
+export async function getTasksByProject(projectId: string, role: string, userId: string) {
+  // Cache-aside: check the role-scoped Redis key first, fall back to DB.
+  const cached = await getCachedTasks(projectId, role, userId);
   if (cached) return { tasks: cached, fromCache: true };
 
-  const tasks = await taskRepo.findTasksByProject(projectId);
-  await setCachedTasks(projectId, tasks);
+  const tasks =
+    role === 'ADMIN'
+      ? await taskRepo.findTasksByProject(projectId)
+      : await taskRepo.findTasksByProjectAndAssignee(projectId, userId);
+
+  await setCachedTasks(projectId, role, userId, tasks);
   return { tasks, fromCache: false };
 }
 
@@ -67,6 +81,10 @@ export async function updateTask(id: string, body: UpdateTaskBody, userId: strin
   return task;
 }
 
+// MEMBER can update status on their own tasks — gateway does not restrict this route.
+// The task-service enforces that members can only update status (not full edit/delete).
+// Status updates are allowed for both roles; full PATCH /tasks/:id is also allowed for
+// both in the gateway (only POST and DELETE are admin-only at the gateway level).
 export async function updateTaskStatus(id: string, body: UpdateTaskStatusBody, userId: string) {
   const existing = await taskRepo.findTaskById(id);
   if (!existing) throw new AppError(404, 'Task not found');
@@ -93,6 +111,6 @@ export async function deleteTask(id: string, userId: string) {
     taskId: id,
     projectId: existing.projectId,
     userId,
-    assigneeId: existing.assigneeId, // included so notification-service can target the right user
+    assigneeId: existing.assigneeId,
   });
 }

@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import type { Task } from '@/lib/api';
 
@@ -53,5 +54,24 @@ export async function updateTaskStatus(
     return { error: body.error ?? 'Failed to update task status' };
   }
 
+  return {};
+}
+
+// ADMIN-only: delete a task. Gateway enforces the role guard — MEMBERs receive 403.
+export async function deleteTask(taskId: string): Promise<{ error?: string }> {
+  const token = cookies().get('token')?.value;
+
+  const res = await fetch(`${GATEWAY}/tasks/${taskId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok && res.status !== 204) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    return { error: body.error ?? 'Failed to delete task' };
+  }
+
+  // Revalidate so server components re-fetch after deletion
+  revalidatePath('/projects/[id]', 'page');
   return {};
 }

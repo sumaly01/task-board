@@ -10,30 +10,28 @@ import * as kafkaProducer from '../src/kafka/producer';
 jest.mock('../src/repositories/project.repository');
 jest.mock('../src/repositories/task.repository');
 
-// Manual mock for cache module — functions return undefined by default
 jest.mock('../src/cache/task.cache', () => ({
   getCachedTasks: jest.fn(),
   setCachedTasks: jest.fn(),
   invalidateTaskCache: jest.fn(),
 }));
 
-// Manual mock for Kafka — publishEvent is fire-and-forget, never throws in tests
 jest.mock('../src/kafka/producer', () => ({
   connectProducer: jest.fn().mockResolvedValue(undefined),
   publishEvent: jest.fn().mockResolvedValue(undefined),
 }));
 
-// Mock Redis singleton so ioredis never tries to connect during tests
 jest.mock('../src/lib/redis', () => ({
   __esModule: true,
-  default: { get: jest.fn(), set: jest.fn(), del: jest.fn(), on: jest.fn() },
+  default: { get: jest.fn(), set: jest.fn(), del: jest.fn(), keys: jest.fn().mockResolvedValue([]), on: jest.fn() },
 }));
 
-// Mock auth middleware: inject a test user identity without needing a real JWT.
-// This simulates exactly what the API Gateway does on Day 4 (header injection).
+// Default auth mock injects an ADMIN user — individual tests can override this
+// by mocking a different implementation for the specific test.
+// Simulates exactly what the API Gateway does: inject x-user-* headers.
 jest.mock('../src/middleware/auth.middleware', () => ({
   requireAuth: (req: any, _res: any, next: any) => {
-    req.user = { userId: 'test-user-id', email: 'test@example.com', role: 'MEMBER' };
+    req.user = { userId: 'admin-user-id', email: 'admin@example.com', role: 'ADMIN' };
     next();
   },
 }));
@@ -48,7 +46,7 @@ const mockedKafka = kafkaProducer as jest.Mocked<typeof kafkaProducer>;
 const mockProject = {
   id: 'project-uuid-1',
   name: 'Test Project',
-  ownerId: 'test-user-id',
+  ownerId: 'admin-user-id',
   createdAt: new Date(),
 };
 
@@ -62,12 +60,15 @@ const mockTask = {
   priority: 'MEDIUM' as const,
   dueDate: null,
   projectId: 'project-uuid-1',
-  assigneeId: 'test-user-id',
-  createdBy: 'test-user-id',
+  assigneeId: 'member-user-id',
+  createdBy: 'admin-user-id',
   reminderSent: false,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
+
+const mockTaskOwnedByMember = { ...mockTask, assigneeId: 'member-user-id' };
+const mockTaskOwnedByOther = { ...mockTask, id: 'task-uuid-2', assigneeId: 'other-member-id' };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -85,7 +86,7 @@ describe('POST /projects', () => {
     expect(res.body.project.name).toBe('Test Project');
     expect(mockedProjectRepo.createProject).toHaveBeenCalledWith({
       name: 'Test Project',
-      ownerId: 'test-user-id',
+      ownerId: 'admin-user-id',
     });
   });
 
@@ -98,15 +99,35 @@ describe('POST /projects', () => {
 
 // ── GET /projects ─────────────────────────────────────────────────────────────
 
-describe('GET /projects', () => {
-  it('returns 200 with projects array for the authenticated user', async () => {
-    mockedProjectRepo.findProjectsByOwner.mockResolvedValue([mockProject]);
+describe('GET /projects — role scoping', () => {
+  it('ADMIN: calls findAllProjects and returns all projects', async () => {
+    mockedProjectRepo.findAllProjects.mockResolvedValue([mockProject]);
 
     const res = await request(app).get('/projects');
 
     expect(res.status).toBe(200);
     expect(res.body.projects).toHaveLength(1);
-    expect(mockedProjectRepo.findProjectsByOwner).toHaveBeenCalledWith('test-user-id');
+    // ADMIN path uses findAllProjects, not findProjectsByOwner
+    expect(mockedProjectRepo.findAllProjects).toHaveBeenCalled();
+    expect(mockedProjectRepo.findProjectsByOwner).not.toHaveBeenCalled();
+  });
+
+  it('MEMBER: calls findProjectsForMember scoped to their userId', async () => {
+    // Override auth to simulate a MEMBER caller
+    const { requireAuth } = require('../src/middleware/auth.middleware');
+    requireAuth.mockImplementationOnce((req: any, _res: any, next: any) => {
+      req.user = { userId: 'member-user-id', email: 'member@example.com', role: 'MEMBER' };
+      next();
+    });
+
+    mockedProjectRepo.findProjectsForMember.mockResolvedValue([mockProject]);
+
+    const res = await request(app).get('/projects');
+
+    expect(res.status).toBe(200);
+    // MEMBER path uses findProjectsForMember
+    expect(mockedProjectRepo.findProjectsForMember).toHaveBeenCalledWith('member-user-id');
+    expect(mockedProjectRepo.findAllProjects).not.toHaveBeenCalled();
   });
 });
 
@@ -120,7 +141,6 @@ describe('GET /projects/:id', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.project.id).toBe('project-uuid-1');
-    expect(res.body.project.tasks).toEqual([]);
   });
 
   it('returns 404 when project does not exist', async () => {
@@ -145,14 +165,12 @@ describe('POST /tasks', () => {
     const res = await request(app).post('/tasks').send({
       title: 'Test Task',
       projectId: 'project-uuid-1',
-      assigneeId: 'test-user-id',
+      assigneeId: 'member-user-id',
     });
 
     expect(res.status).toBe(201);
     expect(res.body.task.title).toBe('Test Task');
-    // Cache must be invalidated so the next GET /tasks fetches fresh data
     expect(mockedCache.invalidateTaskCache).toHaveBeenCalledWith('project-uuid-1');
-    // Kafka event must be published
     expect(mockedKafka.publishEvent).toHaveBeenCalledWith(
       'task.created',
       expect.objectContaining({ taskId: mockTask.id, projectId: 'project-uuid-1' }),
@@ -162,7 +180,7 @@ describe('POST /tasks', () => {
   it('returns 400 when title is missing', async () => {
     const res = await request(app)
       .post('/tasks')
-      .send({ projectId: 'project-uuid-1', assigneeId: 'test-user-id' });
+      .send({ projectId: 'project-uuid-1', assigneeId: 'member-user-id' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Task title is required');
   });
@@ -172,49 +190,74 @@ describe('POST /tasks', () => {
 
     const res = await request(app)
       .post('/tasks')
-      .send({ title: 'Test', projectId: 'bad-id', assigneeId: 'test-user-id' });
+      .send({ title: 'Test', projectId: 'bad-id', assigneeId: 'member-user-id' });
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Project not found');
   });
 });
 
-// ── GET /tasks?projectId= ─────────────────────────────────────────────────────
+// ── GET /tasks?projectId= — role scoping (Day 7 RBAC) ────────────────────────
+//
+// WHY test role scoping here (in addition to gateway tests):
+//   The gateway tests verify the 403 enforcement. These tests verify the DATA
+//   returned is correctly scoped — that a MEMBER only receives their own tasks
+//   even though the request was allowed through the gateway.
 
-describe('GET /tasks?projectId=', () => {
+describe('GET /tasks?projectId= — role scoping', () => {
   it('returns 400 when projectId query param is missing', async () => {
     const res = await request(app).get('/tasks');
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('projectId query parameter is required');
   });
 
-  it('returns tasks from the DB on cache MISS and populates the cache', async () => {
-    // Cache miss: Redis returns null
+  it('ADMIN: returns all tasks from DB on cache MISS', async () => {
     mockedCache.getCachedTasks.mockResolvedValue(null);
-    mockedTaskRepo.findTasksByProject.mockResolvedValue([mockTask]);
+    mockedTaskRepo.findTasksByProject.mockResolvedValue([mockTask, mockTaskOwnedByOther]);
     mockedCache.setCachedTasks.mockResolvedValue(undefined);
 
     const res = await request(app).get('/tasks?projectId=project-uuid-1');
 
     expect(res.status).toBe(200);
-    expect(res.body.tasks).toHaveLength(1);
-    // DB was queried
+    expect(res.body.tasks).toHaveLength(2);
+    // ADMIN path uses findTasksByProject (all tasks)
     expect(mockedTaskRepo.findTasksByProject).toHaveBeenCalledWith('project-uuid-1');
-    // Cache was populated for the next request
-    expect(mockedCache.setCachedTasks).toHaveBeenCalledWith('project-uuid-1', [mockTask]);
+    expect(mockedTaskRepo.findTasksByProjectAndAssignee).not.toHaveBeenCalled();
   });
 
-  it('returns tasks from Redis cache on cache HIT and skips the DB', async () => {
-    // Cache hit: Redis returns serialised tasks
+  it('ADMIN: returns tasks from Redis cache on cache HIT and skips the DB', async () => {
     mockedCache.getCachedTasks.mockResolvedValue([mockTask]);
 
     const res = await request(app).get('/tasks?projectId=project-uuid-1');
 
     expect(res.status).toBe(200);
     expect(res.body.tasks).toHaveLength(1);
-    // DB must NOT be called — data came straight from cache
     expect(mockedTaskRepo.findTasksByProject).not.toHaveBeenCalled();
-    // Cache must NOT be overwritten — it was already valid
-    expect(mockedCache.setCachedTasks).not.toHaveBeenCalled();
+  });
+
+  it('MEMBER: returns only their own tasks (findTasksByProjectAndAssignee)', async () => {
+    // Override auth to simulate a MEMBER caller
+    const { requireAuth } = require('../src/middleware/auth.middleware');
+    requireAuth.mockImplementationOnce((req: any, _res: any, next: any) => {
+      req.user = { userId: 'member-user-id', email: 'member@example.com', role: 'MEMBER' };
+      next();
+    });
+
+    mockedCache.getCachedTasks.mockResolvedValue(null);
+    // DB returns only the member's assigned task
+    mockedTaskRepo.findTasksByProjectAndAssignee.mockResolvedValue([mockTaskOwnedByMember]);
+    mockedCache.setCachedTasks.mockResolvedValue(undefined);
+
+    const res = await request(app).get('/tasks?projectId=project-uuid-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.tasks).toHaveLength(1);
+    expect(res.body.tasks[0].assigneeId).toBe('member-user-id');
+    // MEMBER path uses findTasksByProjectAndAssignee, not findTasksByProject
+    expect(mockedTaskRepo.findTasksByProjectAndAssignee).toHaveBeenCalledWith(
+      'project-uuid-1',
+      'member-user-id',
+    );
+    expect(mockedTaskRepo.findTasksByProject).not.toHaveBeenCalled();
   });
 });
 

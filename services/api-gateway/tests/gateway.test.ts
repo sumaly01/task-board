@@ -3,8 +3,6 @@ import jwt from 'jsonwebtoken';
 import app from '../src/app';
 
 // Mock Redis so tests run without a real Redis instance.
-// The blacklist check (redis.exists) and rate limiter (zremrangebyscore, zcard,
-// zadd, expire) all go through this mock.
 jest.mock('../src/lib/redis', () => ({
   __esModule: true,
   default: {
@@ -18,8 +16,7 @@ jest.mock('../src/lib/redis', () => ({
 }));
 
 // Mock http-proxy-middleware so tests never make real outbound HTTP calls.
-// The proxy just calls next() — tests verify gateway behaviour (JWT, rate limit)
-// without needing upstream services running.
+// The proxy just calls next() — tests verify gateway behaviour without needing upstream services.
 jest.mock('http-proxy-middleware', () => ({
   createProxyMiddleware: jest.fn(() => (_req: unknown, _res: unknown, next: () => void) => next()),
 }));
@@ -63,8 +60,6 @@ describe('GET /health', () => {
 });
 
 // ── JWT middleware ─────────────────────────────────────────────────────────────
-// These tests hit /tasks (a protected route). The proxy mock calls next() so
-// tests reach the JWT middleware without needing a real task-service.
 
 describe('JWT middleware — /tasks', () => {
   it('returns 401 when Authorization header is missing', async () => {
@@ -82,7 +77,7 @@ describe('JWT middleware — /tasks', () => {
   });
 
   it('returns 401 when token is blacklisted in Redis', async () => {
-    mockedRedis.exists.mockResolvedValue(1); // jti is in the blacklist
+    mockedRedis.exists.mockResolvedValue(1);
     const token = makeToken({ jti: 'revoked-jti' });
     const res = await request(app)
       .get('/tasks?projectId=abc')
@@ -97,9 +92,108 @@ describe('JWT middleware — /tasks', () => {
     const res = await request(app)
       .get('/tasks?projectId=abc')
       .set('Authorization', `Bearer ${token}`);
-    // Proxy mock calls next() — Express returns 404 for unhandled route,
-    // but status is NOT 401 which confirms JWT passed.
     expect(res.status).not.toBe(401);
+  });
+});
+
+// ── Role guard — RBAC enforcement ─────────────────────────────────────────────
+//
+// These tests verify that the gateway returns 403 Forbidden when a MEMBER
+// attempts to call an ADMIN-only endpoint. This is the Day 7 RBAC feature.
+//
+// WHY test at the gateway level:
+//   The gateway is the enforcement point. If these tests pass, a MEMBER with a
+//   valid JWT will be blocked before the request ever reaches task-service.
+//   Task-service only needs to scope queries — it can trust that callers on
+//   admin-only routes are always ADMIN by the time they arrive.
+
+describe('Role guard — MEMBER cannot call ADMIN-only endpoints', () => {
+  function memberToken() {
+    return makeToken({ role: 'MEMBER', jti: 'jti-member' });
+  }
+  function adminToken() {
+    return makeToken({ role: 'ADMIN', jti: 'jti-admin' });
+  }
+
+  it('returns 403 when MEMBER calls POST /projects', async () => {
+    const res = await request(app)
+      .post('/projects')
+      .set('Authorization', `Bearer ${memberToken()}`)
+      .send({ name: 'Test' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/forbidden/i);
+  });
+
+  it('returns 403 when MEMBER calls POST /tasks', async () => {
+    const res = await request(app)
+      .post('/tasks')
+      .set('Authorization', `Bearer ${memberToken()}`)
+      .send({ title: 'Test', projectId: 'p1', assigneeId: 'u1' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/forbidden/i);
+  });
+
+  it('returns 403 when MEMBER calls DELETE /tasks/:id', async () => {
+    const res = await request(app)
+      .delete('/tasks/task-uuid-1')
+      .set('Authorization', `Bearer ${memberToken()}`);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/forbidden/i);
+  });
+
+  it('returns 403 when MEMBER calls GET /members', async () => {
+    const res = await request(app)
+      .get('/members')
+      .set('Authorization', `Bearer ${memberToken()}`);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/forbidden/i);
+  });
+
+  it('ADMIN can call POST /projects (passes through to proxy)', async () => {
+    const res = await request(app)
+      .post('/projects')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ name: 'Test' });
+    // Proxy mock calls next() — not 403, which confirms role guard passed
+    expect(res.status).not.toBe(403);
+  });
+
+  it('ADMIN can call POST /tasks (passes through to proxy)', async () => {
+    const res = await request(app)
+      .post('/tasks')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ title: 'Test', projectId: 'p1', assigneeId: 'u1' });
+    expect(res.status).not.toBe(403);
+  });
+
+  it('ADMIN can call DELETE /tasks/:id (passes through to proxy)', async () => {
+    const res = await request(app)
+      .delete('/tasks/task-uuid-1')
+      .set('Authorization', `Bearer ${adminToken()}`);
+    expect(res.status).not.toBe(403);
+  });
+
+  it('ADMIN can call GET /members (passes through to proxy)', async () => {
+    const res = await request(app)
+      .get('/members')
+      .set('Authorization', `Bearer ${adminToken()}`);
+    expect(res.status).not.toBe(403);
+  });
+
+  it('MEMBER can still call GET /tasks (read access is allowed)', async () => {
+    const res = await request(app)
+      .get('/tasks?projectId=abc')
+      .set('Authorization', `Bearer ${memberToken()}`);
+    // Not blocked by role guard — only query results differ (scoped in task-service)
+    expect(res.status).not.toBe(403);
+  });
+
+  it('MEMBER can still call PATCH /tasks/:id/status (status update is allowed)', async () => {
+    const res = await request(app)
+      .patch('/tasks/task-uuid-1/status')
+      .set('Authorization', `Bearer ${memberToken()}`)
+      .send({ status: 'DONE' });
+    expect(res.status).not.toBe(403);
   });
 });
 
@@ -107,7 +201,7 @@ describe('JWT middleware — /tasks', () => {
 
 describe('Rate limiting', () => {
   it('returns 429 when request count exceeds limit', async () => {
-    mockedRedis.zcard.mockResolvedValue(100); // already at the limit
+    mockedRedis.zcard.mockResolvedValue(100);
     const res = await request(app).post('/auth/login').send({});
     expect(res.status).toBe(429);
     expect(res.body.error).toMatch(/too many requests/i);
@@ -125,7 +219,6 @@ describe('Rate limiting', () => {
     await request(app)
       .get('/tasks?projectId=abc')
       .set('Authorization', `Bearer ${token}`);
-    // userRateLimiter builds key `ratelimit:user:user-42`
     expect(mockedRedis.zadd).toHaveBeenCalledWith(
       'ratelimit:user:user-42',
       expect.any(Number),

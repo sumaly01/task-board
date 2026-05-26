@@ -17,7 +17,14 @@ export const getTasksByProject = async (req: Request, res: Response, next: NextF
       res.status(400).json({ error: 'projectId query parameter is required' });
       return;
     }
-    const result = await taskService.getTasksByProject(projectId);
+    // Pass role and userId so the service can return the correct scoped result:
+    //   ADMIN  → all tasks for the project
+    //   MEMBER → only tasks where assigneeId === userId
+    const result = await taskService.getTasksByProject(
+      projectId,
+      req.user!.role,
+      req.user!.userId,
+    );
     res.json({ tasks: result.tasks });
   } catch (err) {
     next(err);

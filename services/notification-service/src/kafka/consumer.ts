@@ -46,10 +46,22 @@ export async function startConsumer(): Promise<void> {
       };
 
       // For created/updated events, notify the assignee.
-      // For deleted events, the full task is not available so we notify the
-      // actor (userId) as a fallback.
+      // For deleted events, the full task is not available so we use assigneeId
+      // from the event payload (task-service includes it on task.deleted).
       const taskData = event.task as { assigneeId?: string } | undefined;
       const targetUserId = taskData?.assigneeId ?? event.assigneeId ?? event.userId;
+
+      // WHY check assigneeId !== createdBy (Day 7 RBAC):
+      //   When an ADMIN creates a task and assigns it to a MEMBER, targetUserId is the
+      //   MEMBER and event.userId is the ADMIN (the creator). Emitting to targetUserId
+      //   correctly notifies the MEMBER.
+      //   But if an admin self-assigns (assignee === creator), they already know —
+      //   they just created it. Emitting to them would be noise. This check prevents
+      //   self-notifications without affecting any other scenario.
+      if (targetUserId === event.userId) {
+        console.log(`[kafka] ${topic} → skipped (assignee === creator, no self-notification)`);
+        return;
+      }
 
       const payload: NotificationPayload = {
         userId: targetUserId,

@@ -12,7 +12,10 @@ export const createProject = async (req: Request, res: Response, next: NextFunct
 
 export const getProjects = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const projects = await projectService.getProjectsByOwner(req.user!.userId);
+    // Pass role + userId so the service returns the correct scoped result:
+    //   ADMIN  → all projects in the system
+    //   MEMBER → only projects with at least one task assigned to this member
+    const projects = await projectService.getProjects(req.user!.role, req.user!.userId);
     res.json({ projects });
   } catch (err) {
     next(err);

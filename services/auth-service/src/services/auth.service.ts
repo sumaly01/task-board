@@ -37,12 +37,10 @@ function signTokens(user: { id: string; email: string; role: string }): AuthToke
   return { accessToken, refreshToken };
 }
 
-// ── Register ────────────────────────────────────────────────────────────────
-// bcrypt.hash(password, 10): the second argument is the salt rounds.
-// bcrypt generates a random salt, hashes password+salt 2^10 times, and embeds
-// the salt in the output. This means: (1) two identical passwords produce
-// different hashes, (2) rainbow table attacks are defeated, (3) brute force
-// is expensive because each attempt requires 2^10 iterations.
+// ── Register (public) ────────────────────────────────────────────────────────
+// Always creates a MEMBER regardless of what role the caller sends in the body.
+// The browser registration form calls this endpoint. Role field is intentionally
+// not accepted here — use POST /auth/register/admin for creating admins.
 export async function register(body: RegisterBody): Promise<SafeUser> {
   const existing = await findUserByEmail(body.email);
   if (existing) throw new AppError(409, 'Email already registered');
@@ -52,6 +50,33 @@ export async function register(body: RegisterBody): Promise<SafeUser> {
     email: body.email,
     password: hashedPassword,
     name: body.name,
+    role: 'MEMBER',
+  });
+
+  const { password: _password, ...safeUser } = user;
+  return safeUser;
+}
+
+// ── Register Admin (Postman / seed only) ─────────────────────────────────────
+// Creates an ADMIN user. Requires the caller to send the correct value in the
+// x-admin-secret header — without it the request is rejected with 403.
+// The secret is set via ADMIN_REGISTRATION_SECRET in the auth-service .env.
+// This endpoint is intentionally not called from the browser register form.
+export async function registerAdmin(body: RegisterBody, providedSecret: string | undefined): Promise<SafeUser> {
+  const adminSecret = process.env.ADMIN_REGISTRATION_SECRET;
+  if (!adminSecret || providedSecret !== adminSecret) {
+    throw new AppError(403, 'Invalid or missing admin registration secret');
+  }
+
+  const existing = await findUserByEmail(body.email);
+  if (existing) throw new AppError(409, 'Email already registered');
+
+  const hashedPassword = await bcrypt.hash(body.password, SALT_ROUNDS);
+  const user = await createUser({
+    email: body.email,
+    password: hashedPassword,
+    name: body.name,
+    role: 'ADMIN',
   });
 
   const { password: _password, ...safeUser } = user;
