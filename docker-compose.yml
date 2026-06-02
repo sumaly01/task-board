@@ -221,6 +221,39 @@ services:
       retries: 5
       start_period: 15s
 
+  # ai-service — Dedicated AI enrichment microservice.
+  # Consumes task.created events from Kafka, calls the Anthropic Claude API
+  # (tool use) to generate structured suggestions (description, priority, effort,
+  # tags), and publishes task.enriched back to Kafka.
+  # task-service then consumes task.enriched, writes the AI fields to the DB,
+  # and publishes task.ai_enriched so notification-service can alert the admin.
+  # WHY a separate service and not a function inside task-service:
+  #   1. The Claude API call is a network I/O concern unrelated to task CRUD.
+  #   2. Isolation means the Claude API key is scoped to this service only.
+  #   3. ai-service can be scaled, restarted, or swapped independently.
+  #   4. It keeps the enrichment failure blast radius outside the core service.
+  ai-service:
+    build:
+      context: ./services/ai-service
+      dockerfile: Dockerfile
+    container_name: taskflow-ai-service
+    ports:
+      - '4004:4004'
+    environment:
+      PORT: 4004
+      KAFKA_BROKERS: kafka:9092
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_ENRICHMENT_ENABLED: ${AI_ENRICHMENT_ENABLED}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4004/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   # api-gateway — The single front door for all HTTP traffic.
   # The frontend and Postman only talk to port 4000. The gateway:
   # 1. Validates the JWT on every protected request (one place, not per service)

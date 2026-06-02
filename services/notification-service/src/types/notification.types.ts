@@ -14,9 +14,19 @@ export interface TaskEvent {
 // instance holding the target user's socket delivers the notification.
 export interface NotificationPayload {
   userId: string; // who to deliver to
-  type: 'TASK_CREATED' | 'TASK_UPDATED' | 'TASK_DELETED' | 'TASK_REMINDER';
+  type: 'TASK_CREATED' | 'TASK_UPDATED' | 'TASK_DELETED' | 'TASK_REMINDER' | 'TASK_AI_ENRICHED';
   taskId: string;
   projectId: string;
   message: string;
   task?: Record<string, unknown>;
+}
+
+// Shape of the task.ai_enriched Kafka event produced by task-service.
+// Only notification-service consumes this — used to emit a Socket.io notification
+// to the admin who created the task so the AI badge appears without a page refresh.
+export interface TaskAiEnrichedEvent {
+  taskId: string;
+  projectId: string;
+  createdBy: string; // the admin to notify — NOT the assignee
+  task: Record<string, unknown>; // full updated task including AI fields
 }

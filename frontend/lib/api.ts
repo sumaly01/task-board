@@ -39,6 +39,12 @@ export interface Task {
   assigneeId: string;
   projectId: string;
   createdAt: string;
+  // AI enrichment fields — null/false until ai-service processes the task (~2-5s after creation)
+  aiDescription: string | null;
+  aiPriority: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  aiEffort: string | null;
+  aiTags: string[];
+  aiEnriched: boolean;
 }
 
 export interface Member {

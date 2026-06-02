@@ -78,6 +78,19 @@ export default function KanbanBoard({ projectId, userId, userName, role, initial
         );
       } else if (payload.type === 'TASK_DELETED') {
         setTasks((prev) => prev.filter((t) => t.id !== payload.taskId));
+      } else if (payload.type === 'TASK_AI_ENRICHED') {
+        // WHY we update local state on TASK_AI_ENRICHED:
+        // The enrichment arrives ~2-5s after task creation. Without this handler
+        // the task card would only show the ✨ badge after a page refresh.
+        // Merging the AI fields into local state means the badge and suggestions
+        // panel appear immediately when the Socket.io event arrives — no reload.
+        setTasks((prev) =>
+          prev.map((t) => (t.id === payload.taskId ? { ...t, ...(payload.task as Task) } : t))
+        );
+        // Also update the viewing modal if it's open on this task
+        setViewingTask((prev) =>
+          prev?.id === payload.taskId ? { ...prev, ...(payload.task as Task) } : prev
+        );
       }
     });
 
@@ -209,6 +222,10 @@ export default function KanbanBoard({ projectId, userId, userName, role, initial
           onDelete={(taskId) => {
             handleDelete(taskId);
             setViewingTask(null);
+          }}
+          onTaskUpdated={(updated) => {
+            setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+            setViewingTask(updated);
           }}
         />
       )}

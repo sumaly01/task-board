@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { Task } from '@/lib/api';
+import { acceptAiSuggestions, dismissAiSuggestions } from '@/app/projects/[id]/actions';
 
 const PRIORITY_COLORS: Record<string, string> = {
   LOW: 'bg-gray-100 text-gray-600',
@@ -15,6 +16,14 @@ const STATUS_LABELS: Record<string, string> = {
   DONE: 'Done',
 };
 
+const EFFORT_LABELS: Record<string, string> = {
+  XS: 'XS — under an hour',
+  S: 'S — half a day',
+  M: 'M — 1-2 days',
+  L: 'L — 3-5 days',
+  XL: 'XL — over a week',
+};
+
 interface Props {
   task: Task;
   assigneeName?: string;
@@ -22,10 +31,12 @@ interface Props {
   onClose: () => void;
   onEdit: () => void;
   onDelete: (taskId: string) => void;
+  onTaskUpdated: (task: Task) => void;
 }
 
-export function TaskViewModal({ task, assigneeName, isAdmin, onClose, onEdit, onDelete }: Props) {
+export function TaskViewModal({ task, assigneeName, isAdmin, onClose, onEdit, onDelete, onTaskUpdated }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [aiPending, setAiPending] = useState(false);
 
   return (
     <div
@@ -76,6 +87,80 @@ export function TaskViewModal({ task, assigneeName, isAdmin, onClose, onEdit, on
               </div>
             )}
           </div>
+
+          {/* AI Suggestions Panel — visible to ADMIN only when aiEnriched=true.
+              WHY admin only: suggestions are for the task creator to review before
+              applying. Members see the final task fields, not the AI drafts. */}
+          {isAdmin && task.aiEnriched && (
+            <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-3">
+              <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
+                ✨ AI Suggestions
+              </p>
+
+              {task.aiDescription && (
+                <div>
+                  <p className="text-xs text-purple-600 font-medium mb-0.5">Description</p>
+                  <p className="text-sm text-gray-700">{task.aiDescription}</p>
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                {task.aiPriority && (
+                  <div>
+                    <p className="text-xs text-purple-600 font-medium mb-0.5">Priority</p>
+                    <p className="text-sm text-gray-700">{task.aiPriority}</p>
+                  </div>
+                )}
+                {task.aiEffort && (
+                  <div>
+                    <p className="text-xs text-purple-600 font-medium mb-0.5">Effort</p>
+                    <p className="text-sm text-gray-700">{EFFORT_LABELS[task.aiEffort] ?? task.aiEffort}</p>
+                  </div>
+                )}
+              </div>
+
+              {task.aiTags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {task.aiTags.map((tag) => (
+                    <span key={tag} className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  disabled={aiPending}
+                  onClick={async () => {
+                    setAiPending(true);
+                    const res = await acceptAiSuggestions(task.id, {
+                      description: task.aiDescription!,
+                      priority: task.aiPriority!,
+                    });
+                    setAiPending(false);
+                    if (res.task) onTaskUpdated(res.task);
+                    else if (!res.error) onClose();
+                  }}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {aiPending ? 'Applying…' : 'Accept all'}
+                </button>
+                <button
+                  disabled={aiPending}
+                  onClick={async () => {
+                    setAiPending(true);
+                    await dismissAiSuggestions(task.id);
+                    setAiPending(false);
+                    onTaskUpdated({ ...task, aiEnriched: false });
+                  }}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
 
           {isAdmin && (
             <div className="pt-2 border-t border-gray-100">

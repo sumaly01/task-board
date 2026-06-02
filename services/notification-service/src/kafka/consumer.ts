@@ -1,6 +1,6 @@
 import { Kafka, Consumer } from 'kafkajs';
 import { redisPublisher } from '../lib/redis';
-import { TaskEvent, NotificationPayload } from '../types/notification.types';
+import { TaskEvent, TaskAiEnrichedEvent, NotificationPayload } from '../types/notification.types';
 
 const kafka = new Kafka({
   clientId: 'notification-service',
@@ -19,17 +19,64 @@ let consumer: Consumer;
 // If each instance used a unique groupId (e.g. 'notification-' + uuid()),
 // every instance would receive every message, causing duplicate notifications
 // for every task event.
+const TOPICS = ['task.created', 'task.updated', 'task.deleted', 'task.enriched', 'task.ai_enriched'];
+
+// WHY we pre-create topics before subscribing:
+// Kafka auto-creates topics when a producer first publishes to them. But if a
+// consumer subscribes before any producer has published (e.g. on a fresh start
+// or after docker-compose down), it gets UNKNOWN_TOPIC_OR_PARTITION and the
+// entire subscription fails — blocking all notifications, not just the missing one.
+// Creating topics upfront via the Admin API is idempotent (no-op if they exist)
+// and guarantees the consumer always starts cleanly regardless of Kafka state.
+async function ensureTopicsExist(): Promise<void> {
+  const admin = kafka.admin();
+  await admin.connect();
+  await admin.createTopics({
+    waitForLeaders: true,
+    topics: TOPICS.map((topic) => ({ topic, numPartitions: 1, replicationFactor: 1 })),
+  });
+  await admin.disconnect();
+}
+
 export async function startConsumer(): Promise<void> {
+  await ensureTopicsExist();
+
   consumer = kafka.consumer({ groupId: 'notification-group' });
 
   await consumer.connect();
   console.log('[kafka] consumer connected, groupId=notification-group');
 
-  await consumer.subscribe({ topics: ['task.created', 'task.updated', 'task.deleted'] });
+  await consumer.subscribe({ topics: ['task.created', 'task.updated', 'task.deleted', 'task.ai_enriched'] });
 
   await consumer.run({
     eachMessage: async ({ topic, message }) => {
       if (!message.value) return;
+
+      // WHY task.ai_enriched is handled separately from the other task.* topics:
+      //
+      // The other topics (created, updated, deleted) all target the ASSIGNEE — the
+      // member who needs to know something changed on their task.
+      // task.ai_enriched targets the CREATOR (admin) — the person who needs to
+      // review the AI suggestions. The payload shape is also different (no userId
+      // in the same position), so a unified handler would need awkward branching.
+      // A dedicated branch is cleaner and easier to extend.
+      if (topic === 'task.ai_enriched') {
+        const event = JSON.parse(message.value.toString()) as TaskAiEnrichedEvent;
+        const taskTitle = (event.task as { title?: string })?.title ?? 'a task';
+
+        const payload: NotificationPayload = {
+          userId: event.createdBy,
+          type: 'TASK_AI_ENRICHED',
+          taskId: event.taskId,
+          projectId: event.projectId,
+          message: `✨ AI suggestions ready for "${taskTitle}"`,
+          task: event.task,
+        };
+
+        await redisPublisher.publish('notifications', JSON.stringify(payload));
+        console.log(`[kafka] task.ai_enriched → Redis notification for admin ${event.createdBy}`);
+        return;
+      }
 
       const event = JSON.parse(message.value.toString()) as TaskEvent;
 

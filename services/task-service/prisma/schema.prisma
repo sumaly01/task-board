@@ -36,6 +36,16 @@ model Task {
   reminderSent Boolean   @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  // AI enrichment fields — written by ai-service via task.enriched Kafka event.
+  // Null until enrichment arrives (~2-5s after task creation).
+  // aiEnriched flips to true when the first enrichment is written; the frontend
+  // uses this as the signal to show the AI suggestions badge and panel.
+  aiDescription String?
+  aiPriority    Priority?
+  aiEffort      String?   // XS | S | M | L | XL — not a DB enum to avoid a migration per change
+  aiTags        String[]
+  aiEnriched    Boolean   @default(false)
 }
 
 enum Status {

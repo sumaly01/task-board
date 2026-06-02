@@ -4,7 +4,7 @@ import * as taskRepo from '../repositories/task.repository';
 import * as projectRepo from '../repositories/project.repository';
 import { getCachedTasks, setCachedTasks, invalidateTaskCache } from '../cache/task.cache';
 import { publishEvent } from '../kafka/producer';
-import { CreateTaskBody, UpdateTaskBody, UpdateTaskStatusBody } from '../types/task.types';
+import { CreateTaskBody, UpdateTaskBody, UpdateTaskStatusBody, AiEnrichmentData } from '../types/task.types';
 
 export async function createTask(body: CreateTaskBody, createdBy: string) {
   if (!body.title?.trim()) throw new AppError(400, 'Task title is required');
@@ -73,6 +73,7 @@ export async function updateTask(id: string, body: UpdateTaskBody, userId: strin
     priority: body.priority as Priority | undefined,
     dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
     assigneeId: body.assigneeId,
+    aiEnriched: body.aiEnriched,
   });
 
   await invalidateTaskCache(task.projectId);
@@ -99,6 +100,46 @@ export async function updateTaskStatus(id: string, body: UpdateTaskStatusBody, u
   await publishEvent('task.updated', { taskId: task.id, projectId: task.projectId, userId, task });
 
   return task;
+}
+
+// Called by the task.enriched Kafka consumer (kafka/consumer.ts).
+// Writes AI suggestions to the task record and publishes task.ai_enriched so
+// notification-service can alert the admin via Socket.io.
+//
+// WHY this lives in the service layer and not directly in the consumer:
+// The consumer's job is to parse the Kafka message and call the service.
+// The service knows about the DB, cache, and Kafka — it is the correct layer
+// to orchestrate those three side effects together.
+export async function applyAiEnrichment(data: AiEnrichmentData) {
+  const task = await taskRepo.findTaskById(data.taskId);
+  if (!task) {
+    console.warn(`[ai-enrichment] task ${data.taskId} not found — skipping`);
+    return;
+  }
+
+  const enriched = await taskRepo.applyAiEnrichment(data.taskId, {
+    aiDescription: data.aiDescription,
+    aiPriority: data.aiPriority,
+    aiEffort: data.aiEffort,
+    aiTags: data.aiTags,
+  });
+
+  // Invalidate ALL role-scoped cache entries for this project so the next GET
+  // returns the task with its new AI fields, not a stale cached version.
+  await invalidateTaskCache(task.projectId);
+
+  // Publish task.ai_enriched — notification-service will emit a Socket.io event
+  // to the admin's browser so the badge appears without a page refresh.
+  // WHY we target createdBy (not assigneeId): the AI suggestions are for the
+  // admin who created the task to review, not for the member doing the work.
+  await publishEvent('task.ai_enriched', {
+    taskId: enriched.id,
+    projectId: enriched.projectId,
+    createdBy: data.createdBy,
+    task: enriched,
+  });
+
+  console.log(`[ai-enrichment] task ${data.taskId} enriched and cache invalidated`);
 }
 
 export async function deleteTask(id: string, userId: string) {

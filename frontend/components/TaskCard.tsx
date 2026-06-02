@@ -33,7 +33,16 @@ export function TaskCard({ task, index, assigneeName, isAdmin, onView }: Props) 
           }`}
         >
           <div className="flex items-start justify-between gap-2">
-            <p className="font-medium text-gray-900 text-sm leading-snug">{task.title}</p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <p className="font-medium text-gray-900 text-sm leading-snug truncate">{task.title}</p>
+              {/* WHY the badge only shows when aiEnriched=true:
+                  The AI fields arrive ~2-5s after task creation via Kafka → Socket.io.
+                  aiEnriched flips to true only when task-service has written the data.
+                  Showing the badge before the data exists would open an empty panel. */}
+              {task.aiEnriched && (
+                <span title="AI suggestions available" className="shrink-0 text-sm">✨</span>
+              )}
+            </div>
             <span
               className={`text-xs font-medium px-2 py-0.5 rounded-md shrink-0 ${
                 PRIORITY_COLORS[task.priority] ?? 'bg-gray-100 text-gray-600'

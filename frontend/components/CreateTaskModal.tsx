@@ -39,6 +39,7 @@ export function CreateTaskModal({ projectId, userId, members, task, onCreated, o
           assigneeId,
         });
 
+        if (!result) { setError('Unexpected error — please try again'); return; }
         if (result.error) { setError(result.error); return; }
         if (result.task && onUpdated) onUpdated(result.task);
       } else {
@@ -51,6 +52,7 @@ export function CreateTaskModal({ projectId, userId, members, task, onCreated, o
           assigneeId,
         });
 
+        if (!result) { setError('Unexpected error — please try again'); return; }
         if (result.error) { setError(result.error); return; }
         if (result.task && onCreated) onCreated(result.task);
       }
