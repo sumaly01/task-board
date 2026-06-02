@@ -1,0 +1,219 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" font-family="Inter, system-ui, -apple-system, sans-serif">
+
+  <defs>
+    <marker id="arr"         markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#64748B"/></marker>
+    <marker id="arr-purple"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#7C3AED"/></marker>
+    <marker id="arr-amber"   markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#CA8A04"/></marker>
+    <marker id="arr-rose"    markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#E11D48"/></marker>
+    <marker id="arr-orange"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#EA580C"/></marker>
+    <marker id="arr-sky"     markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#0284C7"/></marker>
+    <marker id="arr-green"   markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#16A34A"/></marker>
+    <marker id="arr-blue"    markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2563EB"/></marker>
+    <marker id="arr-blue-r"  markerWidth="8" markerHeight="6" refX="1" refY="3" orient="auto"><polygon points="8 0,0 3,8 6" fill="#2563EB"/></marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="780" fill="#F8FAFC" rx="12"/>
+
+  <!-- Title -->
+  <text x="600" y="24" text-anchor="middle" font-size="16" font-weight="700" fill="#0F172A" letter-spacing="0.3">TaskFlow — System Architecture</text>
+
+  <!-- ═══════════════════════════ BROWSER ═══════════════════════════ -->
+  <rect x="460" y="38" width="280" height="68" rx="8" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/>
+  <text x="600" y="60"  text-anchor="middle" font-size="13" font-weight="700" fill="#1E3A8A">Browser / Frontend</text>
+  <text x="600" y="77"  text-anchor="middle" font-size="10" fill="#1D4ED8">Next.js 14 App Router · Tailwind CSS</text>
+  <text x="600" y="92"  text-anchor="middle" font-size="10" fill="#1D4ED8">@hello-pangea/dnd · Socket.io-client · :3000</text>
+
+  <!-- ═══════════════════════════ API GATEWAY ═══════════════════════════ -->
+  <rect x="340" y="160" width="520" height="68" rx="8" fill="#EDE9FE" stroke="#7C3AED" stroke-width="2"/>
+  <text x="600" y="182" text-anchor="middle" font-size="13" font-weight="700" fill="#4C1D95">API Gateway :4000</text>
+  <text x="600" y="198" text-anchor="middle" font-size="10" fill="#5B21B6">JWT Validation · requireRole() RBAC Guard · Redis Sliding-Window Rate Limit</text>
+  <text x="600" y="214" text-anchor="middle" font-size="10" fill="#5B21B6">http-proxy-middleware → /auth/*  /tasks/*  /projects/*  /members</text>
+
+  <!-- Browser → Gateway -->
+  <line x1="600" y1="106" x2="600" y2="158" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="608" y="120" width="76" height="15" rx="3" fill="#F1F5F9"/>
+  <text x="646" y="131" text-anchor="middle" font-size="9" fill="#475569">HTTP REST</text>
+
+  <!-- ═══════════════════════════ SERVICES ═══════════════════════════ -->
+
+  <!-- Auth Service -->
+  <rect x="20"  y="286" width="248" height="96" rx="8" fill="#DCFCE7" stroke="#16A34A" stroke-width="2"/>
+  <text x="144" y="308" text-anchor="middle" font-size="12" font-weight="700" fill="#14532D">Auth Service :4001</text>
+  <text x="144" y="324" text-anchor="middle" font-size="10" fill="#15803D">Register · Login · Refresh · Logout</text>
+  <text x="144" y="339" text-anchor="middle" font-size="10" fill="#15803D">bcrypt (10 rounds) · JWT sign/verify</text>
+  <text x="144" y="354" text-anchor="middle" font-size="10" fill="#15803D">Redis: refresh tokens · jti blacklist</text>
+  <text x="144" y="369" text-anchor="middle" font-size="9"  fill="#166534">POST /register/admin (x-admin-secret header)</text>
+
+  <!-- Task Service -->
+  <rect x="306" y="286" width="248" height="96" rx="8" fill="#DCFCE7" stroke="#16A34A" stroke-width="2"/>
+  <text x="430" y="308" text-anchor="middle" font-size="12" font-weight="700" fill="#14532D">Task Service :4002</text>
+  <text x="430" y="324" text-anchor="middle" font-size="10" fill="#15803D">Project / Task CRUD · Prisma ORM</text>
+  <text x="430" y="339" text-anchor="middle" font-size="10" fill="#15803D">Redis cache-aside (60 s TTL, role-scoped)</text>
+  <text x="430" y="354" text-anchor="middle" font-size="10" fill="#15803D">Kafka producer: created/updated/deleted</text>
+  <text x="430" y="369" text-anchor="middle" font-size="10" fill="#15803D">Kafka consumer: task.enriched → DB write</text>
+
+  <!-- Notification Service -->
+  <rect x="592" y="286" width="248" height="96" rx="8" fill="#DCFCE7" stroke="#16A34A" stroke-width="2"/>
+  <text x="716" y="308" text-anchor="middle" font-size="12" font-weight="700" fill="#14532D">Notification Service :4003</text>
+  <text x="716" y="324" text-anchor="middle" font-size="10" fill="#15803D">Kafka consumer (notification-group)</text>
+  <text x="716" y="339" text-anchor="middle" font-size="10" fill="#15803D">Redis pub/sub bridge (PUBLISH / SUBSCRIBE)</text>
+  <text x="716" y="354" text-anchor="middle" font-size="10" fill="#15803D">Socket.io → targeted browser push</text>
+  <text x="716" y="369" text-anchor="middle" font-size="10" fill="#15803D">node-cron */5 min due-date reminders</text>
+
+  <!-- AI Service -->
+  <rect x="878" y="286" width="300" height="96" rx="8" fill="#DCFCE7" stroke="#16A34A" stroke-width="2"/>
+  <text x="1028" y="308" text-anchor="middle" font-size="12" font-weight="700" fill="#14532D">AI Service :4004</text>
+  <text x="1028" y="324" text-anchor="middle" font-size="10" fill="#15803D">Kafka consumer (ai-enrichment-group)</text>
+  <text x="1028" y="339" text-anchor="middle" font-size="10" fill="#15803D">Anthropic Claude API — tool use (forced)</text>
+  <text x="1028" y="354" text-anchor="middle" font-size="10" fill="#15803D">claude-haiku-4-5 · prompt caching</text>
+  <text x="1028" y="369" text-anchor="middle" font-size="10" fill="#15803D">Kafka producer: task.enriched</text>
+
+  <!-- Gateway → Auth -->
+  <path d="M 430 228 Q 260 258 200 286" stroke="#7C3AED" stroke-width="1.5" fill="none" marker-end="url(#arr-purple)"/>
+  <text x="300" y="250" text-anchor="middle" font-size="9" fill="#6D28D9">/auth/*</text>
+
+  <!-- Gateway → Task -->
+  <path d="M 520 228 Q 490 260 490 286" stroke="#7C3AED" stroke-width="1.5" fill="none" marker-end="url(#arr-purple)"/>
+  <text x="495" y="264" text-anchor="middle" font-size="9" fill="#6D28D9">/tasks/* /projects/*</text>
+
+  <!-- Browser → Notification (WebSocket connect) - dashed blue, going right side -->
+  <path d="M 740 72 C 920 72 940 200 840 286" stroke="#2563EB" stroke-width="1.5" stroke-dasharray="6,3" fill="none" marker-end="url(#arr-blue)"/>
+  <text x="960" y="168" text-anchor="middle" font-size="9" fill="#2563EB">WebSocket connect</text>
+
+  <!-- Notification → Browser (Socket.io emit) - dashed green, right side slightly offset -->
+  <path d="M 840 295 C 970 220 970 90 740 68" stroke="#16A34A" stroke-width="1.5" stroke-dasharray="6,3" fill="none" marker-end="url(#arr-green)"/>
+  <text x="1010" y="208" text-anchor="middle" font-size="9" fill="#15803D">Socket.io emit</text>
+
+  <!-- ═══════════════════════════ INFRASTRUCTURE ═══════════════════════════ -->
+
+  <!-- auth_db -->
+  <rect x="20"  y="472" width="210" height="68" rx="8" fill="#FEF3C7" stroke="#D97706" stroke-width="2"/>
+  <text x="125" y="493" text-anchor="middle" font-size="12" font-weight="700" fill="#78350F">auth_db</text>
+  <text x="125" y="509" text-anchor="middle" font-size="10" fill="#92400E">PostgreSQL :5401</text>
+  <text x="125" y="524" text-anchor="middle" font-size="10" fill="#92400E">Users · Roles · bcrypt hashes</text>
+
+  <!-- task_db -->
+  <rect x="258" y="472" width="210" height="68" rx="8" fill="#FEF3C7" stroke="#D97706" stroke-width="2"/>
+  <text x="363" y="493" text-anchor="middle" font-size="12" font-weight="700" fill="#78350F">task_db</text>
+  <text x="363" y="509" text-anchor="middle" font-size="10" fill="#92400E">PostgreSQL :5433</text>
+  <text x="363" y="524" text-anchor="middle" font-size="10" fill="#92400E">Projects · Tasks · AI Fields</text>
+
+  <!-- Redis -->
+  <rect x="496" y="472" width="210" height="68" rx="8" fill="#FFE4E6" stroke="#E11D48" stroke-width="2"/>
+  <text x="601" y="493" text-anchor="middle" font-size="12" font-weight="700" fill="#881337">Redis :6379</text>
+  <text x="601" y="509" text-anchor="middle" font-size="10" fill="#BE123C">refresh · blacklist · ratelimit</text>
+  <text x="601" y="524" text-anchor="middle" font-size="10" fill="#BE123C">task cache · pub/sub channel</text>
+
+  <!-- Kafka -->
+  <rect x="734" y="472" width="230" height="68" rx="8" fill="#FEF9C3" stroke="#CA8A04" stroke-width="2"/>
+  <text x="849" y="491" text-anchor="middle" font-size="12" font-weight="700" fill="#713F12">Kafka :9092</text>
+  <text x="849" y="507" text-anchor="middle" font-size="9"  fill="#A16207">task.created · task.updated · task.deleted</text>
+  <text x="849" y="521" text-anchor="middle" font-size="9"  fill="#A16207">task.enriched · task.ai_enriched</text>
+  <text x="849" y="535" text-anchor="middle" font-size="9"  fill="#A16207">all 5 topics pre-created at startup</text>
+
+  <!-- Claude API -->
+  <rect x="992" y="472" width="188" height="68" rx="8" fill="#E0F2FE" stroke="#0284C7" stroke-width="2"/>
+  <text x="1086" y="493" text-anchor="middle" font-size="12" font-weight="700" fill="#0C4A6E">Claude API</text>
+  <text x="1086" y="509" text-anchor="middle" font-size="10" fill="#0369A1">claude-haiku-4-5</text>
+  <text x="1086" y="524" text-anchor="middle" font-size="10" fill="#0369A1">Tool Use · Prompt Caching</text>
+
+  <!-- Auth → auth_db -->
+  <line x1="144" y1="382" x2="124" y2="470" stroke="#EA580C" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+
+  <!-- Task → task_db -->
+  <line x1="430" y1="382" x2="374" y2="470" stroke="#EA580C" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+
+  <!-- Auth → Redis (refresh / blacklist) -->
+  <path d="M 268 334 Q 430 334 496 480" stroke="#E11D48" stroke-width="1.5" fill="none" stroke-dasharray="4,2" marker-end="url(#arr-rose)"/>
+  <text x="370" y="326" text-anchor="middle" font-size="9" fill="#BE123C">refresh · blacklist</text>
+
+  <!-- API Gateway → Redis (rate limit) -->
+  <path d="M 601 228 Q 601 380 601 470" stroke="#E11D48" stroke-width="1.5" fill="none" stroke-dasharray="4,2" marker-end="url(#arr-rose)"/>
+  <text x="622" y="350" text-anchor="middle" font-size="9" fill="#BE123C">rate limit</text>
+
+  <!-- Task → Redis (cache) -->
+  <path d="M 554 382 Q 562 430 560 470" stroke="#E11D48" stroke-width="1.5" fill="none" stroke-dasharray="4,2" marker-end="url(#arr-rose)"/>
+  <text x="545" y="430" text-anchor="middle" font-size="9" fill="#BE123C">cache</text>
+
+  <!-- Notification → Redis (pub/sub) -->
+  <path d="M 660 382 Q 648 428 644 470" stroke="#E11D48" stroke-width="1.5" fill="none" stroke-dasharray="4,2" marker-end="url(#arr-rose)"/>
+  <text x="636" y="428" text-anchor="middle" font-size="9" fill="#BE123C">pub/sub</text>
+
+  <!-- Task → Kafka (produce: created/updated/deleted) -->
+  <path d="M 520 382 Q 640 445 734 492" stroke="#CA8A04" stroke-width="1.5" fill="none" marker-end="url(#arr-amber)"/>
+  <text x="634" y="444" text-anchor="middle" font-size="9" fill="#A16207">task.created / updated / deleted</text>
+
+  <!-- Kafka → Notification (consume events) -->
+  <path d="M 790 472 Q 775 428 760 382" stroke="#CA8A04" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arr-amber)"/>
+  <text x="756" y="428" text-anchor="middle" font-size="9" fill="#A16207">consume events</text>
+
+  <!-- Kafka → AI (consume task.created) -->
+  <path d="M 964 472 Q 982 430 1000 382" stroke="#CA8A04" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arr-amber)"/>
+  <text x="1012" y="426" text-anchor="middle" font-size="9" fill="#A16207">task.created</text>
+
+  <!-- AI → Kafka (produce task.enriched) -->
+  <path d="M 880 382 Q 868 428 864 470" stroke="#CA8A04" stroke-width="1.5" fill="none" marker-end="url(#arr-amber)"/>
+  <text x="845" y="428" text-anchor="middle" font-size="9" fill="#A16207">task.enriched</text>
+
+  <!-- Kafka → Task (consume task.enriched) - routes below infra row -->
+  <path d="M 734 506 Q 580 568 430 560 Q 380 545 382 382" stroke="#CA8A04" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arr-amber)"/>
+  <text x="562" y="576" text-anchor="middle" font-size="9" fill="#A16207">task.enriched (consume) → write AI fields</text>
+
+  <!-- AI → Claude -->
+  <line x1="1086" y1="382" x2="1086" y2="470" stroke="#0284C7" stroke-width="1.5" marker-end="url(#arr-sky)"/>
+  <text x="1118" y="428" text-anchor="middle" font-size="9" fill="#0369A1">tool use</text>
+
+  <!-- ═══════════════════════════ LEGEND ═══════════════════════════ -->
+  <rect x="20" y="614" width="1160" height="152" rx="8" fill="white" stroke="#E2E8F0" stroke-width="1.5"/>
+  <text x="600" y="634" text-anchor="middle" font-size="11" font-weight="700" fill="#0F172A">Legend</text>
+
+  <!-- Color chips row -->
+  <rect x="40"  y="644" width="14" height="14" rx="3" fill="#DBEAFE" stroke="#2563EB"  stroke-width="1.5"/><text x="60"  y="655" font-size="10" fill="#334155">Frontend</text>
+  <rect x="130" y="644" width="14" height="14" rx="3" fill="#EDE9FE" stroke="#7C3AED"  stroke-width="1.5"/><text x="150" y="655" font-size="10" fill="#334155">API Gateway</text>
+  <rect x="250" y="644" width="14" height="14" rx="3" fill="#DCFCE7" stroke="#16A34A"  stroke-width="1.5"/><text x="270" y="655" font-size="10" fill="#334155">Microservices</text>
+  <rect x="380" y="644" width="14" height="14" rx="3" fill="#FEF3C7" stroke="#D97706"  stroke-width="1.5"/><text x="400" y="655" font-size="10" fill="#334155">PostgreSQL DB</text>
+  <rect x="500" y="644" width="14" height="14" rx="3" fill="#FFE4E6" stroke="#E11D48"  stroke-width="1.5"/><text x="520" y="655" font-size="10" fill="#334155">Redis</text>
+  <rect x="580" y="644" width="14" height="14" rx="3" fill="#FEF9C3" stroke="#CA8A04"  stroke-width="1.5"/><text x="600" y="655" font-size="10" fill="#334155">Kafka (Event Bus)</text>
+  <rect x="710" y="644" width="14" height="14" rx="3" fill="#E0F2FE" stroke="#0284C7"  stroke-width="1.5"/><text x="730" y="655" font-size="10" fill="#334155">External API</text>
+
+  <!-- Arrow key row -->
+  <line x1="40"  y1="674" x2="80"  y2="674" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="88"  y="678" font-size="10" fill="#334155">HTTP / Proxy</text>
+
+  <line x1="190" y1="674" x2="230" y2="674" stroke="#2563EB" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr-blue)"/>
+  <text x="238" y="678" font-size="10" fill="#334155">WebSocket</text>
+
+  <line x1="320" y1="674" x2="360" y2="674" stroke="#16A34A" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr-green)"/>
+  <text x="368" y="678" font-size="10" fill="#334155">Socket.io emit</text>
+
+  <line x1="460" y1="674" x2="500" y2="674" stroke="#CA8A04" stroke-width="1.5" marker-end="url(#arr-amber)"/>
+  <text x="508" y="678" font-size="10" fill="#334155">Kafka produce</text>
+
+  <line x1="590" y1="674" x2="630" y2="674" stroke="#CA8A04" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-amber)"/>
+  <text x="638" y="678" font-size="10" fill="#334155">Kafka consume</text>
+
+  <line x1="730" y1="674" x2="770" y2="674" stroke="#E11D48" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arr-rose)"/>
+  <text x="778" y="678" font-size="10" fill="#334155">Redis read/write</text>
+
+  <line x1="870" y1="674" x2="910" y2="674" stroke="#EA580C" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+  <text x="918" y="678" font-size="10" fill="#334155">Prisma / DB</text>
+
+  <line x1="990" y1="674" x2="1030" y2="674" stroke="#0284C7" stroke-width="1.5" marker-end="url(#arr-sky)"/>
+  <text x="1038" y="678" font-size="10" fill="#334155">External API call</text>
+
+  <!-- Notes -->
+  <text x="600" y="702" text-anchor="middle" font-size="9" fill="#475569">
+    Kafka fan-out: task.created is consumed independently by notification-group (Notification Service) and ai-enrichment-group (AI Service) — each group gets its own copy, they do not compete
+  </text>
+  <text x="600" y="716" text-anchor="middle" font-size="9" fill="#475569">
+    task.enriched (AI → Task) writes aiDescription / aiPriority / aiEffort / aiTags to DB, then Task publishes task.ai_enriched → Notification Service → Socket.io → ✨ badge on admin's browser
+  </text>
+  <text x="600" y="730" text-anchor="middle" font-size="9" fill="#475569">
+    Redis pub/sub bridges the Kafka consumer (single process) to Socket.io across scaled instances — only the instance holding the target socket delivers the event, others no-op
+  </text>
+  <text x="600" y="744" text-anchor="middle" font-size="9" fill="#475569">
+    RBAC enforced at 3 layers: API Gateway (roleGuard → 403) · Task Service (query scoping by role) · Frontend (useRole() hook, conditional rendering)
+  </text>
+
+</svg>

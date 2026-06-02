@@ -12,47 +12,7 @@ TaskFlow lets teams create projects, assign tasks, and track progress on a Kanba
 
 ## Architecture
 
-```mermaid
-graph TD
-    Browser["🖥️ Browser\nNext.js :3000"]
-
-    GW["API Gateway :4000\nJWT · RBAC · Rate Limit · Proxy"]
-
-    Auth["Auth Service :4001\nRegister · Login · Refresh · Logout"]
-    Task["Task Service :4002\nProject/Task CRUD\nKafka Producer + Consumer"]
-    Notif["Notification Service :4003\nKafka Consumer · Socket.io · Cron"]
-    AI["AI Service :4004\nClaude Tool Use · Enrichment Pipeline"]
-
-    AuthDB[("auth_db\nPostgreSQL :5401")]
-    TaskDB[("task_db\nPostgreSQL :5433")]
-    Redis[("Redis :6379\nCache · Tokens · Rate Limit · Pub/Sub")]
-    Kafka["Kafka :9092\ntask.created · task.updated · task.deleted\ntask.enriched · task.ai_enriched"]
-    Claude["Anthropic Claude API\nHaiku · Tool Use · Prompt Caching"]
-
-    Browser -- "HTTP REST" --> GW
-    GW -- "proxy /auth/*" --> Auth
-    GW -- "proxy /tasks/* /projects/*" --> Task
-    Browser -- "WebSocket :4003" --> Notif
-
-    Auth --- AuthDB
-    Auth -- "refresh tokens\nblacklist" --> Redis
-
-    Task --- TaskDB
-    Task -- "task.created\ntask.updated\ntask.deleted\ntask.ai_enriched" --> Kafka
-    Task -- "cache-aside\ninvalidate" --> Redis
-
-    GW -- "rate limit\ncounter" --> Redis
-
-    Kafka -- "task.created\n(ai-enrichment-group)" --> AI
-    AI -- "tool use\nprompt caching" --> Claude
-    AI -- "task.enriched" --> Kafka
-    Kafka -- "task.enriched\n(task-enrichment-consumer)" --> Task
-
-    Kafka -- "task.created/updated/deleted\ntask.ai_enriched\n(notification-group)" --> Notif
-    Notif -- "PUBLISH notifications\nchannel" --> Redis
-    Redis -- "SUBSCRIBE notifications\nchannel" --> Notif
-    Notif -- "emit notification" --> Browser
-```
+![TaskFlow Architecture](architecture.svg)
 
 ### Services
 
