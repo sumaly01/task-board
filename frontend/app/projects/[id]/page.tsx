@@ -36,6 +36,7 @@ interface PageProps {
 export default async function ProjectPage({ params }: PageProps) {
   const cookieStore = cookies();
   const userId = cookieStore.get('userId')?.value ?? '';
+  const userName = cookieStore.get('userName')?.value ?? '';
   const role = cookieStore.get('role')?.value ?? 'MEMBER';
   const isAdmin = role === 'ADMIN';
 
@@ -71,6 +72,7 @@ export default async function ProjectPage({ params }: PageProps) {
         <KanbanBoard
           projectId={project.id}
           userId={userId}
+          userName={userName}
           role={role as 'ADMIN' | 'MEMBER'}
           initialTasks={tasks}
           members={members}

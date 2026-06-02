@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import type { Task, Member } from '@/lib/api';
 import { TaskCard } from './TaskCard';
 import { CreateTaskModal } from './CreateTaskModal';
+import { TaskViewModal } from './TaskViewModal';
 import { updateTaskStatus, deleteTask } from '@/app/projects/[id]/actions';
 
 interface NotificationPayload {
@@ -28,6 +29,7 @@ const COLUMNS: { id: 'TODO' | 'IN_PROGRESS' | 'DONE'; label: string }[] = [
 interface Props {
   projectId: string;
   userId: string;
+  userName: string;
   // WHY role as a prop (Day 7):
   //   The server component (page.tsx) reads role from the cookie server-side and
   //   passes it down. This pattern keeps the role check close to the data fetch —
@@ -39,10 +41,18 @@ interface Props {
   members: Member[]; // populated only for ADMIN — empty array for MEMBER
 }
 
-export default function KanbanBoard({ projectId, userId, role, initialTasks, members }: Props) {
+export default function KanbanBoard({ projectId, userId, userName, role, initialTasks, members }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const isAdmin = role === 'ADMIN';
+
+  // Build an id→name lookup so TaskCard can show the assignee's name.
+  // For ADMIN: populated from the members list fetched server-side.
+  // For MEMBER: they only see their own tasks, so we seed the map with their own name.
+  const memberNameMap = new Map<string, string>(members.map((m) => [m.id, m.name]));
+  if (!isAdmin && userName) memberNameMap.set(userId, userName);
 
   // Socket.io: connect once on mount, disconnect on unmount.
   // The cleanup prevents duplicate connections when navigating away and back.
@@ -60,7 +70,7 @@ export default function KanbanBoard({ projectId, userId, role, initialTasks, mem
 
       if (payload.type === 'TASK_CREATED') {
         setTasks((prev) =>
-          prev.some((t) => t.id === payload.taskId) ? prev : [...prev, payload.task!]
+          prev.some((t) => t.id === payload.taskId) ? prev : [payload.task!, ...prev]
         );
       } else if (payload.type === 'TASK_UPDATED') {
         setTasks((prev) =>
@@ -170,12 +180,9 @@ export default function KanbanBoard({ projectId, userId, role, initialTasks, mem
                           key={task.id}
                           task={task}
                           index={index}
-                          // WHY isAdmin as a prop to TaskCard:
-                          //   TaskCard renders the delete button only when isAdmin=true.
-                          //   The gateway enforces the rule — the UI just hides the button
-                          //   so members never see a control that would result in a 403.
+                          assigneeName={memberNameMap.get(task.assigneeId)}
                           isAdmin={isAdmin}
-                          onDelete={isAdmin ? handleDelete : undefined}
+                          onView={setViewingTask}
                         />
                       ))}
                       {provided.placeholder}
@@ -188,13 +195,46 @@ export default function KanbanBoard({ projectId, userId, role, initialTasks, mem
         </div>
       </DragDropContext>
 
+      {/* Task view modal — opens for both admin and member when clicking a card */}
+      {viewingTask && (
+        <TaskViewModal
+          task={viewingTask}
+          assigneeName={memberNameMap.get(viewingTask.assigneeId)}
+          isAdmin={isAdmin}
+          onClose={() => setViewingTask(null)}
+          onEdit={() => {
+            setEditingTask(viewingTask);
+            setViewingTask(null);
+          }}
+          onDelete={(taskId) => {
+            handleDelete(taskId);
+            setViewingTask(null);
+          }}
+        />
+      )}
+
+      {/* Edit modal — pre-populated with existing task data, ADMIN only */}
+      {editingTask && isAdmin && (
+        <CreateTaskModal
+          projectId={projectId}
+          userId={userId}
+          members={members}
+          task={editingTask}
+          onUpdated={(updated) =>
+            setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+          }
+          onClose={() => setEditingTask(null)}
+        />
+      )}
+
+      {/* Create modal — ADMIN only */}
       {showCreateModal && isAdmin && (
         <CreateTaskModal
           projectId={projectId}
           userId={userId}
           members={members}
           onCreated={(task) =>
-            setTasks((prev) => prev.some((t) => t.id === task.id) ? prev : [...prev, task])
+            setTasks((prev) => prev.some((t) => t.id === task.id) ? prev : [task, ...prev])
           }
           onClose={() => setShowCreateModal(false)}
         />

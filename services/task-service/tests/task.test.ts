@@ -30,10 +30,12 @@ jest.mock('../src/lib/redis', () => ({
 // by mocking a different implementation for the specific test.
 // Simulates exactly what the API Gateway does: inject x-user-* headers.
 jest.mock('../src/middleware/auth.middleware', () => ({
-  requireAuth: (req: any, _res: any, next: any) => {
+  // jest.fn() is required so individual tests can call mockImplementationOnce
+  // to simulate a MEMBER caller without affecting the default ADMIN behaviour.
+  requireAuth: jest.fn((req: any, _res: any, next: any) => {
     req.user = { userId: 'admin-user-id', email: 'admin@example.com', role: 'ADMIN' };
     next();
-  },
+  }),
 }));
 
 const mockedProjectRepo = projectRepo as jest.Mocked<typeof projectRepo>;

@@ -9,6 +9,7 @@ import { cookies } from 'next/headers';
 export default async function DashboardPage() {
   const cookieStore = cookies();
   const userId = cookieStore.get('userId')?.value ?? '';
+  const userName = cookieStore.get('userName')?.value ?? '';
   // Role is stored in a readable cookie set at login (not httpOnly — not a secret).
   // ADMIN sees all projects + a members panel + "Create Project" button.
   // MEMBER sees only their assigned projects and no creation controls.
@@ -45,7 +46,9 @@ export default async function DashboardPage() {
             <h2 className="text-2xl font-bold text-gray-900">
               {isAdmin ? 'All projects' : 'Your projects'}
             </h2>
-            <p className="text-sm text-gray-500 mt-1">User ID: {userId}</p>
+            {userName && (
+              <p className="text-sm text-gray-500 mt-1">Hello, {userName}</p>
+            )}
           </div>
           {/* Only ADMIN can create projects — MEMBER button is hidden entirely.
               The gateway enforces this at the API level too (POST /projects → 403 for MEMBER). */}

@@ -22,12 +22,12 @@ function getSecrets(): { jwtSecret: string; jwtRefreshSecret: string } {
 // Access token carries userId, email, role, and a jti (unique ID used for
 // blacklisting on logout). Refresh token carries only userId — minimal data,
 // since its only job is to prove the session is still valid.
-function signTokens(user: { id: string; email: string; role: string }): AuthTokens {
+function signTokens(user: { id: string; name: string; email: string; role: string }): AuthTokens {
   const { jwtSecret, jwtRefreshSecret } = getSecrets();
   const jti = randomUUID();
 
   const accessToken = jwt.sign(
-    { userId: user.id, email: user.email, role: user.role, jti },
+    { userId: user.id, name: user.name, email: user.email, role: user.role, jti },
     jwtSecret,
     { expiresIn: '15m' },
   );
@@ -37,11 +37,24 @@ function signTokens(user: { id: string; email: string; role: string }): AuthToke
   return { accessToken, refreshToken };
 }
 
+// Simple RFC-5322-inspired regex — covers the common cases without being overly strict.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateRegistrationInput(body: RegisterBody): void {
+  if (!body.email?.trim()) throw new AppError(400, 'Email is required');
+  if (!EMAIL_REGEX.test(body.email)) throw new AppError(400, 'Invalid email format');
+  if (!body.password) throw new AppError(400, 'Password is required');
+  if (body.password.length < 8) throw new AppError(400, 'Password must be at least 8 characters');
+  if (!body.name?.trim()) throw new AppError(400, 'Name is required');
+}
+
 // ── Register (public) ────────────────────────────────────────────────────────
 // Always creates a MEMBER regardless of what role the caller sends in the body.
 // The browser registration form calls this endpoint. Role field is intentionally
 // not accepted here — use POST /auth/register/admin for creating admins.
 export async function register(body: RegisterBody): Promise<SafeUser> {
+  validateRegistrationInput(body);
+
   const existing = await findUserByEmail(body.email);
   if (existing) throw new AppError(409, 'Email already registered');
 
@@ -67,6 +80,8 @@ export async function registerAdmin(body: RegisterBody, providedSecret: string |
   if (!adminSecret || providedSecret !== adminSecret) {
     throw new AppError(403, 'Invalid or missing admin registration secret');
   }
+
+  validateRegistrationInput(body);
 
   const existing = await findUserByEmail(body.email);
   if (existing) throw new AppError(409, 'Email already registered');

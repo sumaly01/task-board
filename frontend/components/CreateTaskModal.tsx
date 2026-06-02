@@ -1,27 +1,27 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { createTask } from '@/app/projects/[id]/actions';
+import { createTask, updateTask } from '@/app/projects/[id]/actions';
 import type { Task, Member } from '@/lib/api';
 
 interface Props {
   projectId: string;
   userId: string;
-  // ADMIN only: list of MEMBER users to populate the assignee dropdown.
-  // Replaces the raw text input from Day 6 — admins pick from real names,
-  // not UUIDs they have to look up manually.
   members: Member[];
-  onCreated: (task: Task) => void;
+  task?: Task; // when present → edit mode
+  onCreated?: (task: Task) => void;
+  onUpdated?: (task: Task) => void;
   onClose: () => void;
 }
 
-export function CreateTaskModal({ projectId, userId, members, onCreated, onClose }: Props) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('MEDIUM');
-  const [dueDate, setDueDate] = useState('');
-  // Default assignee: first member in the list, or the current user if no members yet
-  const [assigneeId, setAssigneeId] = useState(members[0]?.id ?? userId);
+export function CreateTaskModal({ projectId, userId, members, task, onCreated, onUpdated, onClose }: Props) {
+  const isEdit = !!task;
+
+  const [title, setTitle] = useState(task?.title ?? '');
+  const [description, setDescription] = useState(task?.description ?? '');
+  const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH'>(task?.priority ?? 'MEDIUM');
+  const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : '');
+  const [assigneeId, setAssigneeId] = useState(task?.assigneeId ?? members[0]?.id ?? userId);
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
 
@@ -30,21 +30,31 @@ export function CreateTaskModal({ projectId, userId, members, onCreated, onClose
     setError('');
 
     startTransition(async () => {
-      const result = await createTask({
-        title,
-        description: description || undefined,
-        priority,
-        dueDate: dueDate || undefined,
-        projectId,
-        assigneeId,
-      });
+      if (isEdit) {
+        const result = await updateTask(task!.id, {
+          title,
+          description: description || undefined,
+          priority,
+          dueDate: dueDate || undefined,
+          assigneeId,
+        });
 
-      if (result.error) {
-        setError(result.error);
-        return;
+        if (result.error) { setError(result.error); return; }
+        if (result.task && onUpdated) onUpdated(result.task);
+      } else {
+        const result = await createTask({
+          title,
+          description: description || undefined,
+          priority,
+          dueDate: dueDate || undefined,
+          projectId,
+          assigneeId,
+        });
+
+        if (result.error) { setError(result.error); return; }
+        if (result.task && onCreated) onCreated(result.task);
       }
 
-      if (result.task) onCreated(result.task);
       onClose();
     });
   }
@@ -56,7 +66,7 @@ export function CreateTaskModal({ projectId, userId, members, onCreated, onClose
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Create task</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit task' : 'Create task'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">
             &times;
           </button>
@@ -113,9 +123,6 @@ export function CreateTaskModal({ projectId, userId, members, onCreated, onClose
             </div>
           </div>
 
-          {/* WHY a dropdown instead of a text input (Day 7):
-              Admins can pick the assignee by name from a real list instead of copying
-              a UUID. The list is fetched via GET /members (ADMIN-only, enforced by gateway). */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Assign to</label>
             {members.length > 0 ? (
@@ -161,7 +168,7 @@ export function CreateTaskModal({ projectId, userId, members, onCreated, onClose
               disabled={isPending}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 rounded-lg transition-colors"
             >
-              {isPending ? 'Creating…' : 'Create task'}
+              {isPending ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save changes' : 'Create task')}
             </button>
           </div>
         </form>

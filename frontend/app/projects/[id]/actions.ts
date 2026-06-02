@@ -57,6 +57,38 @@ export async function updateTaskStatus(
   return {};
 }
 
+// ADMIN-only: update a task's fields. Gateway enforces the role guard.
+export async function updateTask(
+  taskId: string,
+  data: {
+    title?: string;
+    description?: string;
+    priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+    dueDate?: string;
+    assigneeId?: string;
+  },
+): Promise<{ task?: Task; error?: string }> {
+  const token = cookies().get('token')?.value;
+
+  const res = await fetch(`${GATEWAY}/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  const body = (await res.json().catch(() => ({}))) as { task?: Task; error?: string };
+
+  if (!res.ok) {
+    return { error: body.error ?? 'Failed to update task' };
+  }
+
+  revalidatePath('/projects/[id]', 'page');
+  return { task: body.task };
+}
+
 // ADMIN-only: delete a task. Gateway enforces the role guard — MEMBERs receive 403.
 export async function deleteTask(taskId: string): Promise<{ error?: string }> {
   const token = cookies().get('token')?.value;

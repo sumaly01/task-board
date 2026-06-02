@@ -29,11 +29,12 @@ export async function POST(request: NextRequest) {
   // We decode it server-side to extract userId for the client to use with Socket.io.
   const payload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64url').toString()) as {
     userId: string;
+    name: string;
     email: string;
     role: string;
   };
 
-  const response = NextResponse.json({ userId: payload.userId, email: payload.email, role: payload.role });
+  const response = NextResponse.json({ userId: payload.userId, name: payload.name, email: payload.email, role: payload.role });
 
   // httpOnly: true means JavaScript in the browser cannot access this cookie at all.
   // The browser attaches it to every same-origin request automatically.
@@ -61,6 +62,14 @@ export async function POST(request: NextRequest) {
   //   role   → useRole() hook to drive conditional rendering (ADMIN vs MEMBER UI)
   // httpOnly: false is intentional — these are identity hints, not auth credentials.
   response.cookies.set('userId', payload.userId, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 7,
+    path: '/',
+  });
+
+  response.cookies.set('userName', payload.name, {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

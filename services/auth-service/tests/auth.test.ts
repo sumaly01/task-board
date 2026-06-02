@@ -72,6 +72,33 @@ describe('POST /auth/register', () => {
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('Email already registered');
   });
+
+  it('returns 400 for an invalid email format', async () => {
+    const res = await request(app)
+      .post('/auth/register')
+      .send({ email: 'not-an-email', password: 'password123', name: 'Test User' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid email format');
+  });
+
+  it('returns 400 when password is shorter than 8 characters', async () => {
+    const res = await request(app)
+      .post('/auth/register')
+      .send({ email: 'valid@example.com', password: 'short', name: 'Test User' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Password must be at least 8 characters');
+  });
+
+  it('returns 400 when name is missing', async () => {
+    const res = await request(app)
+      .post('/auth/register')
+      .send({ email: 'valid@example.com', password: 'password123' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Name is required');
+  });
 });
 
 // ── POST /auth/login ─────────────────────────────────────────────────────────
