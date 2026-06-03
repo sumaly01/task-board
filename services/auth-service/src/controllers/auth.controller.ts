@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as authService from '../services/auth.service';
-import { findAllMembers } from '../repositories/user.repository';
+import { findAllMembers, findUserById } from '../repositories/user.repository';
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -68,6 +68,23 @@ export const getMembers = async (_req: Request, res: Response, next: NextFunctio
     // Strip passwords before returning — never send hashes over the wire
     const safeUsers = users.map(({ password: _p, ...u }) => u);
     res.json({ users: safeUsers });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /users/:id — internal endpoint for service-to-service user lookup.
+// Used by notification-service cron to resolve assigneeId → name for logging.
+// Not exposed through the gateway.
+export const getUserById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const user = await findUserById(req.params.id);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    const { password: _p, ...safeUser } = user;
+    res.json({ user: safeUser });
   } catch (err) {
     next(err);
   }

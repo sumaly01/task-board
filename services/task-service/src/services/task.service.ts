@@ -6,6 +6,16 @@ import { getCachedTasks, setCachedTasks, invalidateTaskCache } from '../cache/ta
 import { publishEvent } from '../kafka/producer';
 import { CreateTaskBody, UpdateTaskBody, UpdateTaskStatusBody, AiEnrichmentData } from '../types/task.types';
 
+// Normalises a dueDate input to end-of-day (23:59:59.999).
+// When a user picks "June 3" with no time, the raw Date is midnight (00:00:00),
+// which means the task "expires" at the very start of that day. Setting it to
+// end-of-day means the task stays visible and remindable for the full calendar day.
+function toEndOfDay(value: string | Date): Date {
+  const d = new Date(value);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
 export async function createTask(body: CreateTaskBody, createdBy: string) {
   if (!body.title?.trim()) throw new AppError(400, 'Task title is required');
   if (!body.projectId) throw new AppError(400, 'projectId is required');
@@ -18,7 +28,7 @@ export async function createTask(body: CreateTaskBody, createdBy: string) {
     title: body.title.trim(),
     description: body.description,
     priority: body.priority ?? Priority.MEDIUM,
-    dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+    dueDate: body.dueDate ? toEndOfDay(body.dueDate) : undefined,
     projectId: body.projectId,
     assigneeId: body.assigneeId,
     createdBy,
@@ -71,7 +81,7 @@ export async function updateTask(id: string, body: UpdateTaskBody, userId: strin
     title: body.title?.trim(),
     description: body.description,
     priority: body.priority as Priority | undefined,
-    dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+    dueDate: body.dueDate ? toEndOfDay(body.dueDate) : undefined,
     assigneeId: body.assigneeId,
     aiEnriched: body.aiEnriched,
   });

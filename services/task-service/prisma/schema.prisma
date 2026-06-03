@@ -33,7 +33,6 @@ model Task {
   project      Project   @relation(fields: [projectId], references: [id])
   assigneeId   String
   createdBy    String
-  reminderSent Boolean   @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

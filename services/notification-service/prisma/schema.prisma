@@ -5,7 +5,7 @@
 // so `prisma generate` can produce a typed client.
 //
 // TASK_DATABASE_URL points at the same task_db that task-service writes to.
-// The cron job queries for tasks due within 24 hours and marks reminderSent=true.
+// The cron job queries for tasks due within 24 hours that are not yet DONE.
 
 generator client {
   provider      = "prisma-client-js"
@@ -27,7 +27,6 @@ model Task {
   projectId     String
   assigneeId    String
   createdBy     String
-  reminderSent  Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   aiDescription String?
